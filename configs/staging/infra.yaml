@@ -1,0 +1,6 @@
+service: payment-api
+replicas: 2
+memory: 1024Mi
+cpu: 1000m
+port: 8080
+health_check: true

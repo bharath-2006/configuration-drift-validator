@@ -1,0 +1,8 @@
+{
+  "environment": "staging",
+  "timestamp": "2026-09-08T10:20:00",
+  "app_version": "1.4.2-rc1",
+  "database_host": "staging-db",
+  "log_level": "INFO",
+  "feature_payment": true
+}

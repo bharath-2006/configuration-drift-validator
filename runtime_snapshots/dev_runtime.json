@@ -1,0 +1,8 @@
+{
+  "environment": "development",
+  "timestamp": "2026-09-08T10:15:00",
+  "app_version": "1.4.2-dev",
+  "database_host": "dev-db",
+  "log_level": "DEBUG",
+  "feature_payment": false
+}
