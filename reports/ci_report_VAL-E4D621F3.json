@@ -1,0 +1,65 @@
+{
+  "run_id": "VAL-E4D621F3",
+  "timestamp": "2026-09-28T21:24:21.427399",
+  "environment": "production",
+  "decision": "SAFE",
+  "risk_score": 67,
+  "risk_level": "HIGH",
+  "total_checks": 25,
+  "passed_checks": 20,
+  "failed_checks": 5,
+  "critical_count": 0,
+  "high_count": 1,
+  "discrepancies": [
+    {
+      "environment": "staging",
+      "category": "env_var",
+      "item_key": "APP_ENV",
+      "expected_val": "Defined for staging",
+      "actual_val": "None",
+      "severity": "LOW",
+      "reason": "Minor configuration difference detected for APP_ENV in staging.",
+      "recommendation": "Review the value to confirm it complies with environment standards."
+    },
+    {
+      "environment": "staging",
+      "category": "env_var",
+      "item_key": "DATABASE_PORT",
+      "expected_val": "Defined for staging",
+      "actual_val": "None",
+      "severity": "LOW",
+      "reason": "Minor configuration difference detected for DATABASE_PORT in staging.",
+      "recommendation": "Review the value to confirm it complies with environment standards."
+    },
+    {
+      "environment": "staging",
+      "category": "env_var",
+      "item_key": "API_URL",
+      "expected_val": "Defined for staging",
+      "actual_val": "None",
+      "severity": "LOW",
+      "reason": "Minor configuration difference detected for API_URL in staging.",
+      "recommendation": "Review the value to confirm it complies with environment standards."
+    },
+    {
+      "environment": "staging",
+      "category": "env_var",
+      "item_key": "LOG_LEVEL",
+      "expected_val": "Defined for staging",
+      "actual_val": "None",
+      "severity": "MEDIUM",
+      "reason": "Log level 'None' deviates from standard 'Defined for staging'. Could cause excessive disk writes or insufficient log visibility.",
+      "recommendation": "Align LOG_LEVEL with environment policy (Defined for staging)."
+    },
+    {
+      "environment": "production",
+      "category": "runtime",
+      "item_key": "LOG_LEVEL",
+      "expected_val": "INFO",
+      "actual_val": "DEBUG",
+      "severity": "HIGH",
+      "reason": "Runtime container state for 'LOG_LEVEL' differs from approved configuration. The active container might have been modified out-of-band.",
+      "recommendation": "Restart or redeploy container using the approved configuration baseline."
+    }
+  ]
+}

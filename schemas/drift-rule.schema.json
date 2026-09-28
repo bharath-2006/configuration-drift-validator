@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://configguard.local/schemas/drift-rule.schema.json",
+  "title": "DriftRuleDefinition",
+  "description": "Explicit JSON Schema defining a deterministic drift validation rule.",
+  "type": "object",
+  "required": ["rule_id", "target_environment", "category", "item_key", "severity", "reason", "recommendation"],
+  "properties": {
+    "rule_id": {
+      "type": "string",
+      "pattern": "^RULE-[A-Z0-9_-]+$",
+      "description": "Unique identifier for the drift rule (e.g. RULE-PROD-DEBUG)."
+    },
+    "name": {
+      "type": "string",
+      "description": "Short human-readable title of the rule."
+    },
+    "target_environment": {
+      "type": "string",
+      "enum": ["production", "staging", "development", "all"],
+      "description": "Environment where this policy is actively enforced."
+    },
+    "category": {
+      "type": "string",
+      "enum": ["env_var", "infrastructure", "secret", "runtime"],
+      "description": "Configuration pillar evaluated by this rule."
+    },
+    "item_key": {
+      "type": "string",
+      "description": "Configuration key targeted (e.g. DEBUG, DATABASE_HOST, replicas)."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+      "description": "Assigned severity if a discrepancy violates this rule."
+    },
+    "rule_type": {
+      "type": "string",
+      "enum": ["forbidden_indicator", "exact_match", "boolean_check", "threshold_check", "presence_check"],
+      "description": "Evaluation logic type applied."
+    },
+    "forbidden_indicators": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Substrings or hostnames forbidden in this environment (e.g. ['dev-db', 'localhost'])."
+    },
+    "expected_value": {
+      "description": "Canonical expected value (can be boolean, string, number, or object)."
+    },
+    "reason": {
+      "type": "string",
+      "description": "Plain-English architectural explanation of why this drift is hazardous."
+    },
+    "recommendation": {
+      "type": "string",
+      "description": "Actionable instructions for the developer to remediate the drift."
+    }
+  }
+}

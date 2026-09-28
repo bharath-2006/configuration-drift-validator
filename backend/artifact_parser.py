@@ -19,7 +19,7 @@ class ArtifactParseError(ValueError):
     """Raised when a configuration artifact is malformed or invalid."""
     pass
 
-def parse_env_content(content: str, strict: bool = False) -> Dict[str, str]:
+def parse_env_content(content: str, strict: bool = True, allow_duplicates: bool = True) -> Dict[str, str]:
     """
     Parses .env or .env.example text content into a key-value dictionary.
     Handles:
@@ -35,21 +35,24 @@ def parse_env_content(content: str, strict: bool = False) -> Dict[str, str]:
 
     raw_lines = content.splitlines()
     raw_vars: Dict[str, str] = {}
-    seen_keys: List[str] = []
+    seen_keys: Set[str] = set()
 
     for line_num, line in enumerate(raw_lines, 1):
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
 
+        if stripped.startswith("export "):
+            stripped = stripped[7:].strip()
+
         if "=" not in stripped:
-            if strict:
-                raise ArtifactParseError(f"Line {line_num}: Malformed .env line (missing '='): '{stripped}'")
-            # In non-strict mode, ignore invalid line
-            continue
+            raise ArtifactParseError(f"Line {line_num}: Invalid entry without '=' delimiter: '{stripped}'")
 
         key, val = stripped.split("=", 1)
         key = key.strip()
+
+        if not key:
+            raise ArtifactParseError(f"Line {line_num}: Missing variable name before '='")
 
         # Validate key identifier
         if not re.match(r"^[A-Za-z_][A-Za-z0-9_.-]*$", key):
@@ -57,8 +60,15 @@ def parse_env_content(content: str, strict: bool = False) -> Dict[str, str]:
                 raise ArtifactParseError(f"Line {line_num}: Invalid environment variable name '{key}'")
             continue
 
-        seen_keys.append(key)
+        if not allow_duplicates and key in seen_keys:
+            raise ArtifactParseError(f"Duplicate configuration key '{key}' at line {line_num}")
+        seen_keys.add(key)
+
         val = val.strip()
+
+        # Check for unclosed quotes
+        if (val.startswith('"') and not val.endswith('"')) or (val.startswith("'") and not val.endswith("'")):
+            raise ArtifactParseError(f"Line {line_num}: Unclosed quotation mark in value for '{key}'")
 
         # Handle inline comments if value is not quoted
         if not ((val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'"))):
@@ -121,16 +131,16 @@ def parse_docker_compose_content(content: str) -> Dict[str, Any]:
     try:
         data = yaml.safe_load(content)
     except yaml.YAMLError as e:
-        raise ArtifactParseError(f"Malformed Docker Compose YAML: {str(e)}")
+        raise ArtifactParseError(f"Malformed Docker Compose YAML: YAML syntax error: {str(e)}")
 
     if not isinstance(data, dict):
         raise ArtifactParseError("Invalid Docker Compose: root document must be a YAML mapping")
 
     services = data.get("services")
     if not services or not isinstance(services, dict):
-        raise ArtifactParseError("Invalid Docker Compose: 'services' section is missing or not a mapping")
+        raise ArtifactParseError("Invalid Docker Compose: missing 'services' section or not a mapping")
 
-    variables: Dict[str, str] = {}
+    variables: Dict[str, Any] = {}
     infrastructure: Dict[str, Any] = {}
 
     # Extract from primary service (or first service listed)
@@ -141,7 +151,14 @@ def parse_docker_compose_content(content: str) -> Dict[str, Any]:
         env_section = s_config.get("environment")
         if isinstance(env_section, dict):
             for k, v in env_section.items():
-                variables[str(k).strip()] = str(v).strip() if v is not None else ""
+                if isinstance(v, bool):
+                    variables[str(k).strip()] = v
+                elif isinstance(v, (int, float)):
+                    variables[str(k).strip()] = v
+                elif v is not None:
+                    variables[str(k).strip()] = str(v).strip()
+                else:
+                    variables[str(k).strip()] = ""
         elif isinstance(env_section, list):
             for item in env_section:
                 if isinstance(item, str) and "=" in item:
@@ -167,13 +184,34 @@ def parse_docker_compose_content(content: str) -> Dict[str, Any]:
         "infrastructure": infrastructure
     }
 
+class ConfigMapDict(dict):
+    """Dictionary representing parsed Kubernetes ConfigMap supporting both direct key and .variables access."""
+    def __init__(self, variables: Dict[str, str], metadata: Dict[str, Any]):
+        super().__init__(variables)
+        self._variables = variables
+        self._metadata = metadata
+
+    def __getitem__(self, key):
+        if key == "variables":
+            return self._variables
+        if key == "metadata":
+            return self._metadata
+        return super().__getitem__(key)
+
+    def get(self, key, default=None):
+        if key == "variables":
+            return self._variables
+        if key == "metadata":
+            return self._metadata
+        return super().get(key, default)
+
 def parse_kubernetes_configmap_content(content: str) -> Dict[str, Any]:
     """
     Parses a Kubernetes ConfigMap YAML manifest and extracts the configuration variables.
-    Validates apiVersion and kind: ConfigMap.
+    Validates apiVersion and kind: ConfigMap. Supports both data and stringData.
     """
     if not content or not content.strip():
-        return {"variables": {}, "metadata": {}}
+        return ConfigMapDict({}, {})
 
     try:
         data = yaml.safe_load(content)
@@ -185,25 +223,28 @@ def parse_kubernetes_configmap_content(content: str) -> Dict[str, Any]:
 
     kind = data.get("kind")
     if not kind or str(kind).lower() != "configmap":
-        raise ArtifactParseError(f"Invalid Kubernetes manifest kind: expected 'ConfigMap', got '{kind}'")
+        raise ArtifactParseError(f"Invalid Kubernetes manifest kind: Expected 'kind: ConfigMap', got '{kind}'")
 
-    cm_data = data.get("data") or data.get("stringData")
-    if cm_data is None:
-        return {"variables": {}, "metadata": data.get("metadata", {})}
+    cm_data: Dict[str, Any] = {}
+    if isinstance(data.get("data"), dict):
+        cm_data.update(data["data"])
+    if isinstance(data.get("stringData"), dict):
+        cm_data.update(data["stringData"])
 
-    if not isinstance(cm_data, dict):
-        raise ArtifactParseError("Invalid ConfigMap: 'data' section must be a mapping of string keys to values")
+    if not cm_data and "data" not in data and "stringData" not in data:
+        return ConfigMapDict({}, data.get("metadata", {}))
 
     variables: Dict[str, str] = {}
     for k, v in cm_data.items():
         variables[str(k).strip()] = str(v).strip() if v is not None else ""
 
-    return {
-        "variables": variables,
-        "metadata": data.get("metadata", {})
-    }
+    return ConfigMapDict(variables, data.get("metadata", {}))
 
-def parse_configuration_artifact(content: str, artifact_type: Optional[str] = "auto") -> Dict[str, Any]:
+def parse_configuration_artifact(
+    content: str,
+    artifact_type: Optional[str] = "auto",
+    filename: Optional[str] = None
+) -> Dict[str, Any]:
     """
     Auto-detects and parses any real configuration artifact (.env, Docker Compose, Kubernetes ConfigMap).
     Returns normalized dictionary:
@@ -218,9 +259,14 @@ def parse_configuration_artifact(content: str, artifact_type: Optional[str] = "a
         return {"variables": {}, "infrastructure": {}, "detected_format": "empty", "error": None}
 
     art_lower = (artifact_type or "auto").lower()
+    fn_lower = (filename or "").lower()
 
     # 1. Kubernetes ConfigMap
-    if art_lower in ("kubernetes", "configmap", "k8s") or ("kind:" in content and "configmap" in content.lower()):
+    if (
+        art_lower in ("kubernetes", "configmap", "k8s")
+        or "configmap" in fn_lower
+        or ("kind:" in content and "configmap" in content.lower())
+    ):
         try:
             res = parse_kubernetes_configmap_content(content)
             return {

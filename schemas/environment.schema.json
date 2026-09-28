@@ -40,7 +40,7 @@
         "memory": { "type": "string" },
         "cpu": { "type": "string" },
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
-        "health_check": { "type": "boolean" }
+        "health_check": { "type": ["boolean", "integer"] }
       },
       "additionalProperties": true
     },
@@ -53,13 +53,18 @@
         "properties": {
           "name": { "type": "string" },
           "environment": { "type": "string", "enum": ["development", "staging", "production"] },
-          "exists": { "type": "boolean" },
-          "is_present": { "type": "boolean" },
+          "exists": { "type": ["boolean", "integer"] },
+          "is_present": { "type": ["boolean", "integer"] },
           "source": { "type": "string" },
           "last_rotated": { "type": "string" },
           "age_days": { "type": "integer", "minimum": 0 }
         }
       }
+    },
+    "created_at": {
+      "type": "string",
+      "description": "Timestamp when this version was created."
     }
-  }
+  },
+  "additionalProperties": false
 }

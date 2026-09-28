@@ -64,8 +64,27 @@ class ConfigUploadRequest(BaseModel):
     raw_env_content: Optional[str] = None
     raw_infra_content: Optional[str] = None
     raw_secrets_content: Optional[str] = None
+    artifact_content: Optional[str] = None
+    artifact_type: Optional[str] = None
     description: Optional[str] = "Manual update via dashboard"
     author: Optional[str] = "developer"
+
+class ArtifactParseRequest(BaseModel):
+    content: str
+    artifact_type: Optional[str] = "auto"
+    filename: Optional[str] = None
+    environment: Optional[str] = "production"
+
+class ArtifactParseResponse(BaseModel):
+    status: str
+    artifact_type: str
+    environment: str
+    parsed_variables: Dict[str, Any]
+    detected_infrastructure: Dict[str, Any]
+    total_keys: int
+    is_schema_valid: bool
+    schema_errors: List[str] = []
+    message: str
 
 # --- Runtime Snapshots ---
 

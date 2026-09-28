@@ -1,6 +1,6 @@
 {
   "database_host": "prod-db",
-  "log_level": "INFO",
+  "log_level": "DEBUG",
   "environment": "production",
   "app_version": "1.0.0"
 }

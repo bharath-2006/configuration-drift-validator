@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://configguard.local/schemas/runtime-snapshot.schema.json",
+  "title": "RuntimeSnapshotDefinition",
+  "description": "Explicit JSON Schema defining captured live container runtime configuration state.",
+  "type": "object",
+  "required": ["environment", "snapshot_data"],
+  "properties": {
+    "environment": {
+      "type": "string",
+      "enum": ["development", "staging", "production"],
+      "description": "Target environment of the running container."
+    },
+    "app_version": {
+      "type": "string",
+      "description": "SemVer or build tag of the running container."
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "ISO timestamp when snapshot was captured."
+    },
+    "snapshot_data": {
+      "type": "object",
+      "description": "Key-value mapping of live environment variables and runtime parameters.",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null"]
+      }
+    },
+    "status": {
+      "type": "string",
+      "description": "Health status reported by the container runtime agent."
+    }
+  },
+  "additionalProperties": false
+}

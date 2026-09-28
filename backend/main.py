@@ -24,9 +24,17 @@ from backend.schemas import (
     RuntimeSnapshotPayload,
     GitCommitSimulateRequest,
     PreDeploymentCheckRequest,
-    MonitoringScanRequest
+    MonitoringScanRequest,
+    ArtifactParseRequest,
+    ArtifactParseResponse
 )
 from backend.normalizer import parse_env_file_content, parse_yaml_or_json
+from backend.artifact_parser import parse_configuration_artifact, ArtifactParseError
+from backend.schema_validator import (
+    validate_environment_config,
+    validate_runtime_snapshot_data,
+    validate_drift_rule
+)
 from backend.drift_engine import run_full_drift_analysis
 from backend.rollback import (
     get_active_version,
@@ -162,31 +170,91 @@ def get_config_history(environment: str):
     """Returns version history for a given environment."""
     return get_version_history(environment.lower())
 
+@app.post("/api/configs/parse-artifact", response_model=ArtifactParseResponse)
+def parse_artifact_endpoint(payload: ArtifactParseRequest):
+    """
+    Parses real configuration artifacts (.env, Docker Compose YAML, Kubernetes ConfigMap YAML)
+    and validates against environment schema before returning standard internal representation.
+    """
+    try:
+        parsed = parse_configuration_artifact(
+            content=payload.content,
+            artifact_type=payload.artifact_type,
+            filename=payload.filename
+        )
+    except ArtifactParseError as e:
+        raise HTTPException(status_code=400, detail=f"Artifact parsing error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse artifact: {str(e)}")
+
+    # Schema validation check
+    schema_bundle = {
+        "environment": payload.environment or "production",
+        "version": 1,
+        "variables": parsed["variables"],
+        "infrastructure": parsed.get("infrastructure", {})
+    }
+    is_valid, errors = validate_environment_config(schema_bundle, environment=payload.environment or "production")
+
+    return ArtifactParseResponse(
+        status="success",
+        artifact_type=parsed.get("artifact_type", "unknown"),
+        environment=payload.environment or "production",
+        parsed_variables=parsed["variables"],
+        detected_infrastructure=parsed.get("infrastructure", {}),
+        total_keys=len(parsed["variables"]),
+        is_schema_valid=is_valid,
+        schema_errors=errors if not is_valid else [],
+        message=f"Successfully parsed {len(parsed['variables'])} variables from {parsed.get('artifact_type', 'artifact')}"
+    )
+
 @app.post("/api/configs/{environment}/update")
 def update_environment_config(environment: str, payload: ConfigUploadRequest):
     """
-    Updates configuration for an environment by parsing provided raw text/files
-    and creating a new immutable configuration version.
+    Updates configuration for an environment by parsing provided raw text/files or artifacts
+    and creating a new immutable configuration version after schema validation.
     """
     env_lower = environment.lower()
     current_active_v = get_active_version(env_lower)
     existing_bundle = get_config_snapshot_by_version(env_lower, current_active_v) if current_active_v else None
 
-    # Parse provided env vars or keep existing
-    if payload.raw_env_content is not None and payload.raw_env_content.strip():
-        new_vars = parse_env_file_content(payload.raw_env_content)
+    new_vars = {}
+    new_infra = {}
+
+    # If an artifact was provided (.env, Docker Compose, Kubernetes ConfigMap)
+    if payload.artifact_content is not None and payload.artifact_content.strip():
+        try:
+            parsed = parse_configuration_artifact(
+                payload.artifact_content,
+                artifact_type=payload.artifact_type
+            )
+            new_vars = parsed["variables"]
+            if parsed.get("infrastructure"):
+                new_infra = parsed["infrastructure"]
+        except ArtifactParseError as e:
+            raise HTTPException(status_code=400, detail=f"Malformed configuration artifact: {str(e)}")
+    # Otherwise check raw_env_content
+    elif payload.raw_env_content is not None and payload.raw_env_content.strip():
+        try:
+            parsed = parse_configuration_artifact(payload.raw_env_content, artifact_type="env")
+            new_vars = parsed["variables"]
+        except ArtifactParseError as e:
+            raise HTTPException(status_code=400, detail=f"Malformed .env content: {str(e)}")
+        except Exception:
+            new_vars = parse_env_file_content(payload.raw_env_content)
     elif existing_bundle:
         new_vars = existing_bundle.get("variables", {})
     else:
         new_vars = {}
 
     # Parse provided infra or keep existing
-    if payload.raw_infra_content is not None and payload.raw_infra_content.strip():
-        new_infra = parse_yaml_or_json(payload.raw_infra_content)
-    elif existing_bundle:
-        new_infra = existing_bundle.get("infrastructure", {})
-    else:
-        new_infra = {}
+    if not new_infra:
+        if payload.raw_infra_content is not None and payload.raw_infra_content.strip():
+            new_infra = parse_yaml_or_json(payload.raw_infra_content)
+        elif existing_bundle:
+            new_infra = existing_bundle.get("infrastructure", {})
+        else:
+            new_infra = {}
 
     # Parse secrets or keep existing
     if payload.raw_secrets_content is not None and payload.raw_secrets_content.strip():
@@ -198,6 +266,21 @@ def update_environment_config(environment: str, payload: ConfigUploadRequest):
         new_secrets = existing_bundle.get("secrets", [])
     else:
         new_secrets = []
+
+    # Explicit JSON schema validation before saving to DB
+    bundle_to_validate = {
+        "environment": env_lower,
+        "version": (current_active_v or 0) + 1,
+        "variables": new_vars,
+        "infrastructure": new_infra,
+        "secrets": new_secrets
+    }
+    is_valid, validation_errors = validate_environment_config(bundle_to_validate, environment=env_lower)
+    if not is_valid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Configuration schema validation failed: {'; '.join(validation_errors)}"
+        )
 
     new_version = save_new_config_version(
         environment=env_lower,
@@ -231,12 +314,26 @@ def get_runtime_snapshot(environment: str):
 
 @app.post("/api/runtime/{environment}")
 def update_runtime_snapshot(environment: str, payload: RuntimeSnapshotPayload):
-    """Updates runtime snapshot for simulation."""
+    """Updates runtime snapshot after schema validation."""
     env_lower = environment.lower()
     prefix = 'prod' if env_lower == 'production' else 'dev' if env_lower == 'development' else 'staging'
     snapshot_file = RUNTIME_DIR / f"{prefix}_runtime.json"
-    data = payload.snapshot_data
-    data["environment"] = environment
+    snapshot_bundle = {
+        "environment": env_lower,
+        "app_version": payload.app_version or "1.0.0",
+        "snapshot_data": payload.snapshot_data
+    }
+
+    # Validate runtime snapshot against schema
+    is_valid, errors = validate_runtime_snapshot_data(snapshot_bundle)
+    if not is_valid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Runtime snapshot schema validation failed: {'; '.join(errors)}"
+        )
+
+    data = payload.snapshot_data.copy()
+    data["environment"] = env_lower
     data["app_version"] = payload.app_version
     snapshot_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
@@ -466,7 +563,10 @@ def get_rollbacks():
 
 @app.post("/api/rollback")
 def execute_rollback(payload: RollbackRequest):
-    """Rolls back an environment to a previous version."""
+    """
+    Rolls back an environment to a previous version, performs actual state restoration,
+    and immediately re-runs drift validation to verify system health.
+    """
     try:
         result = perform_rollback(
             environment=payload.environment,
@@ -474,6 +574,9 @@ def execute_rollback(payload: RollbackRequest):
             reason=payload.reason,
             performed_by=payload.performed_by
         )
+        # Immediately re-run drift validation after state restoration
+        post_validation = validate_configurations()
+        result["validation_after_rollback"] = post_validation
         return result
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

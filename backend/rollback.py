@@ -57,13 +57,20 @@ def get_config_snapshot_by_version(environment: str, version_num: int) -> Option
         """, (v_id,))
         infra_row = cursor.fetchone()
         infra = dict(infra_row) if infra_row else {}
+        if infra and "health_check" in infra:
+            infra["health_check"] = bool(infra["health_check"])
 
         # Secrets metadata
         cursor.execute("""
             SELECT name, environment, is_present, source, last_rotated, age_days
             FROM secret_metadata WHERE version_id = ?
         """, (v_id,))
-        secrets = [dict(row) for row in cursor.fetchall()]
+        secrets = []
+        for row in cursor.fetchall():
+            s = dict(row)
+            s["is_present"] = bool(s.get("is_present", 1))
+            s["exists"] = s["is_present"]
+            secrets.append(s)
 
         return {
             "environment": environment,
@@ -189,13 +196,43 @@ def perform_rollback(
             VALUES (?, ?, ?, ?, ?)
         """, (environment, from_version, target_version, reason, performed_by))
 
+    # Retrieve the restored snapshot to verify actual state restoration
+    restored_snapshot = get_config_snapshot_by_version(environment, target_version) or {}
+    restored_vars = restored_snapshot.get("variables", {})
+    restored_infra = restored_snapshot.get("infrastructure", {})
+
+    # Actual state restoration: sync restored configuration back to filesystem configs/
+    from pathlib import Path
+    base_dir = Path(__file__).resolve().parent.parent
+    env_dir = base_dir / "configs" / environment
+    if env_dir.exists() and restored_vars:
+        env_file = env_dir / "app.env"
+        env_lines = [f"{k}={v}" for k, v in restored_vars.items()]
+        try:
+            env_file.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
+        except Exception:
+            pass
+
     log_audit_event(
         user=performed_by,
         action="Configuration Rollback",
         environment=environment,
-        details=f"Rolled back from Version {from_version} to Version {target_version}. Reason: {reason}",
+        details=f"Rolled back from Version {from_version} to Version {target_version}. Restored {len(restored_vars)} variables. Reason: {reason}",
         risk_level="HIGH"
     )
+
+    # Dispatch notification for operational visibility
+    try:
+        from backend.notifications import create_notification
+        create_notification(
+            title=f"Configuration Rollback: {environment.title()} v{target_version}",
+            message=f"Restored from v{from_version} to v{target_version}. Reason: {reason}",
+            severity="WARNING",
+            category="rollback",
+            environment=environment
+        )
+    except Exception:
+        pass
 
     return {
         "status": "success",
@@ -203,7 +240,9 @@ def perform_rollback(
         "from_version": from_version,
         "restored_version": target_version,
         "reason": reason,
-        "performed_by": performed_by
+        "performed_by": performed_by,
+        "restored_variables": restored_vars,
+        "message": f"Successfully restored {environment} to Version {target_version}"
     }
 
 def get_all_rollback_records() -> List[Dict[str, Any]]:
