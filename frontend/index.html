@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Configuration Drift Validator | Pre-Production Safety Gate</title>
-  <meta name="description" content="3rd-Year College Project: Configuration Drift Validator preventing environment-specific misconfigurations from reaching production.">
+  <title>Configuration Drift Validator | Continuous Validation & Safety Platform</title>
+  <meta name="description" content="3rd-Year College Project: Continuous Configuration Safety and Validation Platform with Git Integration, CI/CD Pipeline Gating, Runtime Monitoring, and Explainable Risk Scoring.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -23,18 +23,37 @@
           </svg>
         </div>
         <div>
-          <h1 class="brand-title">ConfigGuard <span class="badge-student">College Project MVP</span></h1>
-          <p class="brand-subtitle">Configuration Drift Validator & Pre-Production Deployment Gate</p>
+          <h1 class="brand-title">ConfigGuard <span class="badge-student">Phase 2 (70% Platform)</span></h1>
+          <p class="brand-subtitle">Continuous Configuration Safety, CI/CD Validation & Runtime Monitoring</p>
         </div>
       </div>
 
       <div class="header-actions">
-        <button id="btn-validate" class="btn btn-primary" onclick="runValidation()">
+        <!-- Pre-Deployment Button -->
+        <button id="btn-header-predeploy" class="btn btn-primary" onclick="triggerPreDeploymentValidation()">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
           </svg>
-          Run Drift Validation
+          Validate Before Deployment
         </button>
+
+        <!-- Simulate Git Commit -->
+        <button id="btn-header-git" class="btn btn-outline" onclick="openGitCommitModal()" title="Simulate a Git commit modifying configuration">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="4"></circle>
+            <line x1="1.05" y1="12" x2="7" y2="12"></line>
+            <line x1="17.01" y1="12" x2="22.96" y2="12"></line>
+          </svg>
+          Simulate Git Commit
+        </button>
+
+        <!-- Notification Bell -->
+        <button id="btn-notif" class="btn-icon" onclick="toggleNotificationDrawer()" title="View Notifications">
+          🔔
+          <span id="notif-badge" class="badge-count">0</span>
+        </button>
+
+        <!-- Reset Demo -->
         <button id="btn-reset" class="btn btn-outline" onclick="resetDemoState()" title="Reset to initial clean demo state">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
@@ -44,6 +63,20 @@
         </button>
       </div>
     </header>
+
+    <!-- Notification Drawer -->
+    <div id="notif-drawer" class="notif-drawer">
+      <div class="notif-header">
+        <h4>System Notifications</h4>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-outline" style="padding:4px 8px; font-size:0.75rem;" onclick="markAllNotificationsRead()">Mark all read</button>
+          <button class="modal-close" style="font-size:1.1rem;" onclick="toggleNotificationDrawer()">&times;</button>
+        </div>
+      </div>
+      <div class="notif-list" id="notif-list">
+        <!-- Populated via JS -->
+      </div>
+    </div>
 
     <!-- Deployment Gate Status Banner -->
     <section id="deployment-gate-banner" class="gate-banner gate-loading">
@@ -77,7 +110,7 @@
               <span class="env-tag env-tag-dev">DEV</span>
               <h4 class="env-name">Development</h4>
             </div>
-            <span class="status-badge badge-healthy" id="badge-dev">Healthy</span>
+            <span class="status-badge badge-healthy" id="badge-dev">HEALTHY</span>
           </div>
           <div class="env-stats">
             <div class="stat-item">
@@ -103,7 +136,7 @@
               <span class="env-tag env-tag-staging">STAGE</span>
               <h4 class="env-name">Staging</h4>
             </div>
-            <span class="status-badge badge-healthy" id="badge-staging">Healthy</span>
+            <span class="status-badge badge-healthy" id="badge-staging">HEALTHY</span>
           </div>
           <div class="env-stats">
             <div class="stat-item">
@@ -129,7 +162,7 @@
               <span class="env-tag env-tag-prod">PROD</span>
               <h4 class="env-name">Production</h4>
             </div>
-            <span class="status-badge badge-healthy" id="badge-prod">Healthy</span>
+            <span class="status-badge badge-healthy" id="badge-prod">HEALTHY</span>
           </div>
           <div class="env-stats">
             <div class="stat-item">
@@ -154,34 +187,58 @@
     <!-- Key Metrics Ribbon -->
     <section class="metrics-ribbon">
       <div class="metric-card">
-        <span class="metric-num text-cyan" id="metric-total-items">24</span>
-        <span class="metric-label">Configuration Items</span>
+        <span class="metric-num text-cyan" id="metric-total-validations">1</span>
+        <span class="metric-label">Total Validations</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-num text-blue" id="metric-drifts">0</span>
+        <span class="metric-label">Config Drifts</span>
       </div>
       <div class="metric-card">
         <span class="metric-num text-rose" id="metric-critical">0</span>
-        <span class="metric-label">Critical Blockers</span>
+        <span class="metric-label">Critical Issues</span>
       </div>
       <div class="metric-card">
         <span class="metric-num text-amber" id="metric-high">0</span>
-        <span class="metric-label">High Severity</span>
+        <span class="metric-label">High Issues</span>
       </div>
       <div class="metric-card">
-        <span class="metric-num text-blue" id="metric-med">0</span>
-        <span class="metric-label">Medium/Low</span>
+        <span class="metric-num text-purple" id="metric-blocked-deploys">0</span>
+        <span class="metric-label">Blocked Deploys</span>
       </div>
       <div class="metric-card">
-        <span class="metric-num text-emerald" id="metric-gate-status">OPEN</span>
-        <span class="metric-label">Deployment Gate</span>
+        <span class="metric-num text-emerald" id="metric-approved-changes">0</span>
+        <span class="metric-label">Approved Changes</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-num text-cyan" id="metric-rollbacks">0</span>
+        <span class="metric-label">Rollbacks</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-num text-indigo" id="metric-risk-score">0/100</span>
+        <span class="metric-label">Risk Score</span>
       </div>
     </section>
 
     <!-- Main Workflow Tabs Navigation -->
     <div class="tab-nav">
-      <button class="tab-btn active" onclick="switchTab('drift-tab')">
-        🔍 Drift Analysis Results (<span id="drift-count-badge">0</span>)
+      <button class="tab-btn active" onclick="switchTab('dashboard-tab')">
+        📊 Overview & Charts
+      </button>
+      <button class="tab-btn" onclick="switchTab('predeploy-tab')">
+        🚀 Pre-Deployment Gate
+      </button>
+      <button class="tab-btn" onclick="switchTab('drift-tab')">
+        🔍 Drift Validation (<span id="drift-count-badge">0</span>)
       </button>
       <button class="tab-btn" onclick="switchTab('config-tab')">
-        ⚙️ Configuration Manager
+        ⚙️ Configurations
+      </button>
+      <button class="tab-btn" onclick="switchTab('history-tab')">
+        📜 Config History & Diff
+      </button>
+      <button class="tab-btn" onclick="switchTab('monitoring-tab')">
+        📡 Continuous Monitoring
       </button>
       <button class="tab-btn" onclick="switchTab('change-tab')">
         📋 Change Requests (<span id="cr-count-badge">0</span>)
@@ -189,16 +246,162 @@
       <button class="tab-btn" onclick="switchTab('rollback-tab')">
         ⏪ Version Rollback
       </button>
+      <button class="tab-btn" onclick="switchTab('reports-tab')">
+        📑 Validation Reports
+      </button>
       <button class="tab-btn" onclick="switchTab('audit-tab')">
-        📜 Audit Trail
+        📜 Audit Logs
       </button>
       <button class="tab-btn" onclick="switchTab('viva-tab')">
-        🎓 College Viva Demo Scenarios
+        🎓 Viva Demo Scenarios
       </button>
     </div>
 
-    <!-- TAB 1: Drift Analysis Results -->
-    <div id="drift-tab" class="tab-panel active">
+    <!-- TAB 1: Overview Dashboard & Charts -->
+    <div id="dashboard-tab" class="tab-panel active">
+      <div class="panel-header">
+        <div>
+          <h3>Continuous Configuration Safety Dashboard</h3>
+          <p class="panel-sub">Real-time metrics, risk analytics, and recent configuration commits.</p>
+        </div>
+      </div>
+
+      <!-- Visual Charts Grid -->
+      <div class="charts-grid">
+        <!-- Chart 1: Drifts by Environment -->
+        <div class="chart-card">
+          <div class="chart-header">
+            <h4>Drift Count by Environment</h4>
+            <span class="pill pill-neutral" id="total-env-drifts">0 Drifts</span>
+          </div>
+          <div class="chart-body">
+            <div class="chart-bar-row">
+              <div class="chart-bar-labels"><span>Development</span><span id="lbl-dev-drifts">0</span></div>
+              <div class="chart-bar-track"><div id="bar-dev-drifts" class="chart-bar-fill fill-dev" style="width: 0%;"></div></div>
+            </div>
+            <div class="chart-bar-row">
+              <div class="chart-bar-labels"><span>Staging</span><span id="lbl-stage-drifts">0</span></div>
+              <div class="chart-bar-track"><div id="bar-stage-drifts" class="chart-bar-fill fill-staging" style="width: 0%;"></div></div>
+            </div>
+            <div class="chart-bar-row">
+              <div class="chart-bar-labels"><span>Production</span><span id="lbl-prod-drifts">0</span></div>
+              <div class="chart-bar-track"><div id="bar-prod-drifts" class="chart-bar-fill fill-prod" style="width: 0%;"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart 2: Issues by Severity -->
+        <div class="chart-card">
+          <div class="chart-header">
+            <h4>Issues by Severity</h4>
+            <span class="pill pill-neutral">Distribution</span>
+          </div>
+          <div class="chart-body">
+            <div class="chart-bar-row">
+              <div class="chart-bar-labels"><span class="text-rose">Critical</span><span id="lbl-crit-cnt">0</span></div>
+              <div class="chart-bar-track"><div id="bar-crit-cnt" class="chart-bar-fill fill-crit" style="width: 0%;"></div></div>
+            </div>
+            <div class="chart-bar-row">
+              <div class="chart-bar-labels"><span class="text-amber">High</span><span id="lbl-high-cnt">0</span></div>
+              <div class="chart-bar-track"><div id="bar-high-cnt" class="chart-bar-fill fill-high" style="width: 0%;"></div></div>
+            </div>
+            <div class="chart-bar-row">
+              <div class="chart-bar-labels"><span class="text-blue">Medium</span><span id="lbl-med-cnt">0</span></div>
+              <div class="chart-bar-track"><div id="bar-med-cnt" class="chart-bar-fill fill-med" style="width: 0%;"></div></div>
+            </div>
+            <div class="chart-bar-row">
+              <div class="chart-bar-labels"><span class="text-emerald">Low</span><span id="lbl-low-cnt">0</span></div>
+              <div class="chart-bar-track"><div id="bar-low-cnt" class="chart-bar-fill fill-low" style="width: 0%;"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart 3: Deployment Gate Ratio -->
+        <div class="chart-card">
+          <div class="chart-header">
+            <h4>Deployment Gate Outcomes</h4>
+            <span class="pill pill-neutral">Pass vs Block</span>
+          </div>
+          <div class="chart-body">
+            <div class="chart-bar-row">
+              <div class="chart-bar-labels"><span class="text-emerald">Safe / Approved</span><span id="lbl-gate-passed">1</span></div>
+              <div class="chart-bar-track"><div id="bar-gate-passed" class="chart-bar-fill fill-low" style="width: 100%;"></div></div>
+            </div>
+            <div class="chart-bar-row">
+              <div class="chart-bar-labels"><span class="text-rose">Blocked Deployments</span><span id="lbl-gate-blocked">0</span></div>
+              <div class="chart-bar-track"><div id="bar-gate-blocked" class="chart-bar-fill fill-crit" style="width: 0%;"></div></div>
+            </div>
+            <div style="font-size:0.8rem; color:var(--text-muted); margin-top:8px;">
+              Deployment blockers prevent unintended service crashes and data corruption.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Git Commits Stream -->
+      <div style="margin-top:24px;">
+        <div class="panel-header">
+          <div>
+            <h4>Recent Git Configuration Commits</h4>
+            <p class="panel-sub">Audited configuration changes detected from repository commits.</p>
+          </div>
+          <button class="btn btn-outline" onclick="openGitCommitModal()">+ Simulate New Commit</button>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Commit ID</th>
+                <th>Author</th>
+                <th>Message</th>
+                <th>Environment</th>
+                <th>Changed Keys</th>
+                <th>Result</th>
+                <th>Risk Level</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody id="git-commits-tbody">
+              <!-- Populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: Pre-Deployment Validation Gate -->
+    <div id="predeploy-tab" class="tab-panel">
+      <div class="panel-header">
+        <div>
+          <h3>Automated Pre-Deployment Validation Process</h3>
+          <p class="panel-sub">Sequential 6-stage gate: Config Check &rarr; Environment Check &rarr; Infrastructure Check &rarr; Secret Check &rarr; Runtime Check &rarr; Risk Analysis &rarr; Decision</p>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <select id="predeploy-env-select" class="input-select" style="width:160px;">
+            <option value="production">Production</option>
+            <option value="staging">Staging</option>
+            <option value="development">Development</option>
+          </select>
+          <button class="btn btn-primary" onclick="triggerPreDeploymentValidation()">
+            🚀 Execute Pre-Deployment Check
+          </button>
+        </div>
+      </div>
+
+      <!-- Decision Card Result -->
+      <div id="predeploy-decision-banner" class="decision-card decision-safe" style="display:none; margin-bottom:20px;">
+        <div id="predeploy-decision-title">DEPLOYMENT SAFE</div>
+        <div id="predeploy-decision-desc" style="font-size:0.9rem; font-weight:normal;">No critical configuration discrepancies detected.</div>
+      </div>
+
+      <!-- Pipeline Steps Container -->
+      <div class="pipeline-container" id="pipeline-steps-container">
+        <!-- Rendered via JS -->
+      </div>
+    </div>
+
+    <!-- TAB 3: Drift Analysis Results -->
+    <div id="drift-tab" class="tab-panel">
       <div class="panel-header">
         <div>
           <h3>Detected Discrepancies & Drift Rationale</h3>
@@ -238,7 +441,7 @@
       </div>
     </div>
 
-    <!-- TAB 2: Configuration Manager -->
+    <!-- TAB 4: Configuration Manager -->
     <div id="config-tab" class="tab-panel">
       <div class="panel-header">
         <div>
@@ -293,7 +496,153 @@
       </div>
     </div>
 
-    <!-- TAB 3: Change Requests & Approvals -->
+    <!-- TAB 5: Configuration History & Diff -->
+    <div id="history-tab" class="tab-panel">
+      <div class="panel-header">
+        <div>
+          <h3>Configuration Version History & Diff Comparator</h3>
+          <p class="panel-sub">View immutable historical versions and compare two versions side-by-side (OLD VALUE &rarr; NEW VALUE).</p>
+        </div>
+        <div class="env-toggle-group">
+          <button class="env-btn active" id="btn-hist-prod" onclick="loadHistoryForEnv('production')">Production</button>
+          <button class="env-btn" id="btn-hist-stage" onclick="loadHistoryForEnv('staging')">Staging</button>
+          <button class="env-btn" id="btn-hist-dev" onclick="loadHistoryForEnv('development')">Development</button>
+        </div>
+      </div>
+
+      <!-- Compare Controls -->
+      <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px; padding:16px; margin-bottom:20px; display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+        <span style="font-weight:600;">Side-by-Side Comparator:</span>
+        <label>Version A (Old):</label>
+        <select id="diff-v-a" class="input-select" style="width:120px;"></select>
+        <label>Version B (New):</label>
+        <select id="diff-v-b" class="input-select" style="width:120px;"></select>
+        <button class="btn btn-primary" onclick="executeVersionDiff()">Compare Versions</button>
+      </div>
+
+      <!-- Diff Container (populated on compare) -->
+      <div id="diff-output-box" style="display:none; margin-bottom:24px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px; padding:16px;">
+        <div class="panel-header">
+          <h4 id="diff-title">Version Diff</h4>
+          <span id="diff-stats-badge" class="pill pill-neutral">0 Changes</span>
+        </div>
+        <div class="table-wrapper">
+          <table class="diff-table">
+            <thead>
+              <tr>
+                <th>Configuration Key</th>
+                <th>Old Value (Version A)</th>
+                <th>New Value (Version B)</th>
+                <th>Change Status</th>
+              </tr>
+            </thead>
+            <tbody id="diff-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Version History Table -->
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Version</th>
+              <th>Date</th>
+              <th>Author</th>
+              <th>Description / Changes</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="history-tbody">
+            <!-- Populated via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 6: Continuous Configuration Monitoring -->
+    <div id="monitoring-tab" class="tab-panel">
+      <div class="panel-header">
+        <div>
+          <h3>Continuous Configuration Monitoring</h3>
+          <p class="panel-sub">Detects live container drift against approved configuration baselines.</p>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button class="btn btn-outline" onclick="triggerMonitoringScan()">🔄 Run Monitoring Scan</button>
+          <button class="btn btn-primary" onclick="simulateRuntimeDrift()">⚡ Simulate Runtime Drift (DEBUG=true)</button>
+        </div>
+      </div>
+
+      <!-- Summary metrics cards -->
+      <div class="monitoring-summary-bar">
+        <div class="mon-card">
+          <span class="mon-lbl">Environment Status</span>
+          <span class="mon-val" id="mon-env-status">HEALTHY</span>
+        </div>
+        <div class="mon-card">
+          <span class="mon-lbl">Detected Drifts</span>
+          <span class="mon-val" id="mon-drifts-count">0</span>
+        </div>
+        <div class="mon-card">
+          <span class="mon-lbl">Critical Issues</span>
+          <span class="mon-val text-rose" id="mon-critical-count">0</span>
+        </div>
+        <div class="mon-card">
+          <span class="mon-lbl">Last Successful Scan</span>
+          <span class="mon-val" style="font-size:0.85rem;" id="mon-last-success">Just now</span>
+        </div>
+        <div class="mon-card">
+          <span class="mon-lbl">Last Failed Scan</span>
+          <span class="mon-val" style="font-size:0.85rem;" id="mon-last-failed">None</span>
+        </div>
+      </div>
+
+      <!-- Live Comparison Table -->
+      <div class="panel-header">
+        <h4>Expected Baseline vs Live Container Snapshot</h4>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Configuration Key</th>
+              <th>Approved Baseline Value</th>
+              <th>Live Container Value</th>
+              <th>Sync Status</th>
+            </tr>
+          </thead>
+          <tbody id="monitoring-comparison-tbody">
+            <!-- Populated via JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Recent Monitoring Event Log -->
+      <div style="margin-top:24px;">
+        <div class="panel-header">
+          <h4>Monitoring Event Ledger</h4>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Event Type</th>
+                <th>Status</th>
+                <th>Drifts</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody id="monitoring-events-tbody">
+              <!-- Populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 7: Change Requests & Approvals -->
     <div id="change-tab" class="tab-panel">
       <div class="panel-header">
         <div>
@@ -326,7 +675,7 @@
       </div>
     </div>
 
-    <!-- TAB 4: Version Rollback -->
+    <!-- TAB 8: Version Rollback -->
     <div id="rollback-tab" class="tab-panel">
       <div class="panel-header">
         <div>
@@ -380,7 +729,39 @@
       </div>
     </div>
 
-    <!-- TAB 5: Audit Trail -->
+    <!-- TAB 9: Validation Reports -->
+    <div id="reports-tab" class="tab-panel">
+      <div class="panel-header">
+        <div>
+          <h3>Automated Validation Reports & Exports</h3>
+          <p class="panel-sub">Downloadable audit reports generated after each CI/CD or pre-deployment validation run.</p>
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Validation Run ID</th>
+              <th>Date</th>
+              <th>Environment</th>
+              <th>Total Checks</th>
+              <th>Passed</th>
+              <th>Failed</th>
+              <th>Critical</th>
+              <th>Decision</th>
+              <th>Risk Score</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="reports-tbody">
+            <!-- Populated via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 10: Audit Trail -->
     <div id="audit-tab" class="tab-panel">
       <div class="panel-header">
         <div>
@@ -409,7 +790,7 @@
       </div>
     </div>
 
-    <!-- TAB 6: College Viva Demo Scenarios -->
+    <!-- TAB 11: College Viva Demo Scenarios -->
     <div id="viva-tab" class="tab-panel">
       <div class="panel-header">
         <div>
@@ -480,7 +861,7 @@
 
   </div>
 
-  <!-- Modal for New Change Request -->
+  <!-- Modal 1: New Change Request -->
   <div id="modal-change-request" class="modal-backdrop">
     <div class="modal-box">
       <div class="modal-header">
@@ -516,6 +897,60 @@
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="closeNewChangeModal()">Cancel</button>
         <button class="btn btn-primary" onclick="submitChangeRequest()">Submit for Review</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: Simulate Git Commit -->
+  <div id="modal-git-commit" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Simulate Git Configuration Commit</h3>
+        <button class="modal-close" onclick="closeGitCommitModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label>Author:</label>
+          <input type="text" id="git-modal-author" class="input-text" value="Developer-Alex">
+        </div>
+        <div class="form-row">
+          <label>Commit Message:</label>
+          <input type="text" id="git-modal-msg" class="input-text" value="fix: update database endpoint">
+        </div>
+        <div class="form-row">
+          <label>Target Environment:</label>
+          <select id="git-modal-env" class="input-select">
+            <option value="production">Production</option>
+            <option value="staging">Staging</option>
+            <option value="development">Development</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Changed Configurations (JSON):</label>
+          <textarea id="git-modal-json" class="input-textarea mono" rows="4">{"DATABASE_HOST": "dev-db"}</textarea>
+          <small style="color:var(--text-muted);">Tip: Set DATABASE_HOST to 'dev-db' to test CI pipeline rejection.</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeGitCommitModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitGitCommitSimulation()">Validate & Commit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 3: View Validation Report Details -->
+  <div id="modal-report-details" class="modal-backdrop">
+    <div class="modal-box" style="max-width:700px;">
+      <div class="modal-header">
+        <h3 id="report-modal-title">Validation Report Details</h3>
+        <button class="modal-close" onclick="closeReportModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="report-modal-content">
+        <!-- Rendered dynamically -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btn-export-json">Export JSON</button>
+        <button class="btn btn-primary" id="btn-export-csv">Export CSV</button>
       </div>
     </div>
   </div>

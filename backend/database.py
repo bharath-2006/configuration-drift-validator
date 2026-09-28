@@ -181,6 +181,87 @@ def init_db():
         );
         """)
 
+        # 11. Git Commits (Tracked & Simulated configuration commits)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS git_commits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            commit_id TEXT NOT NULL UNIQUE,
+            author TEXT NOT NULL,
+            message TEXT NOT NULL,
+            changed_files_json TEXT NOT NULL,
+            changed_configs_json TEXT NOT NULL,
+            environment TEXT NOT NULL,
+            validation_result TEXT NOT NULL, -- PASSED, BLOCKED, WARNING
+            risk_level TEXT NOT NULL,        -- LOW, MEDIUM, HIGH, CRITICAL
+            risk_score INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+
+        # 12. Validation Runs (Detailed records for audit and reporting)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS validation_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id TEXT NOT NULL UNIQUE,
+            environment TEXT NOT NULL,
+            total_checks INTEGER NOT NULL,
+            passed_checks INTEGER NOT NULL,
+            failed_checks INTEGER NOT NULL,
+            critical_count INTEGER NOT NULL,
+            high_count INTEGER NOT NULL,
+            medium_count INTEGER NOT NULL,
+            low_count INTEGER NOT NULL,
+            deployment_decision TEXT NOT NULL, -- SAFE, BLOCKED, WARNING
+            risk_score INTEGER DEFAULT 0,
+            risk_level TEXT DEFAULT 'LOW',
+            triggered_by TEXT DEFAULT 'manual', -- manual, ci_cd, pre_deployment, monitoring
+            summary_json TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+
+        # 13. System Notifications
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            severity TEXT NOT NULL, -- INFO, WARNING, CRITICAL
+            category TEXT NOT NULL, -- drift, deployment, change_request, runtime, rollback
+            environment TEXT,
+            is_read BOOLEAN DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+
+        # 14. Deployment Pipeline Check Stages
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS deployment_checks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            check_run_id TEXT NOT NULL,
+            environment TEXT NOT NULL,
+            stage_name TEXT NOT NULL, -- config_check, env_check, infra_check, secret_check, runtime_check, risk_analysis
+            status TEXT NOT NULL,     -- PASSED, FAILED, WARNING
+            details TEXT,
+            duration_ms REAL DEFAULT 0.0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+
+        # 15. Continuous Monitoring Events
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS monitoring_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            environment TEXT NOT NULL,
+            event_type TEXT NOT NULL, -- periodic_scan, runtime_drift_detected, healthy_scan
+            severity TEXT NOT NULL,   -- INFO, MEDIUM, HIGH, CRITICAL
+            status TEXT NOT NULL,     -- HEALTHY, WARNING, CRITICAL
+            drifts_count INTEGER DEFAULT 0,
+            details TEXT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+
         # Seed default environments if empty
         cursor.execute("SELECT COUNT(*) as count FROM environments;")
         if cursor.fetchone()["count"] == 0:

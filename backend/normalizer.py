@@ -70,6 +70,9 @@ def values_are_equivalent(val1: Any, val2: Any) -> bool:
     if type1 in ("int", "number") and type2 in ("int", "number"):
         return float(norm1) == float(norm2)
 
+    if type1 == "string" and type2 == "string":
+        return norm1.lower() == norm2.lower()
+
     return norm1 == norm2
 
 def parse_env_file_content(content: str) -> Dict[str, str]:
@@ -123,3 +126,13 @@ def extract_host_from_url_or_endpoint(endpoint: str) -> str:
         return match.group(1).lower()
     # Otherwise return raw stripped string
     return clean.split(":")[0].strip().lower()
+
+# Re-export real configuration artifact parsers
+from backend.artifact_parser import (
+    parse_env_content,
+    parse_docker_compose_content,
+    parse_kubernetes_configmap_content,
+    parse_configuration_artifact,
+    ArtifactParseError
+)
+

@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://configguard.local/schemas/environment.schema.json",
+  "title": "EnvironmentDefinition",
+  "description": "Explicit JSON Schema defining an environment configuration bundle (Development, Staging, Production).",
+  "type": "object",
+  "required": ["environment", "variables"],
+  "properties": {
+    "environment": {
+      "type": "string",
+      "enum": ["development", "staging", "production"],
+      "description": "Target environment name."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonically increasing immutable configuration version number."
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable summary of this configuration snapshot."
+    },
+    "author": {
+      "type": "string",
+      "description": "User, agent, or pipeline that generated this configuration."
+    },
+    "variables": {
+      "type": "object",
+      "description": "Key-value environment variable definitions.",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null"]
+      }
+    },
+    "infrastructure": {
+      "type": "object",
+      "description": "Infrastructure specifications.",
+      "properties": {
+        "service_name": { "type": "string" },
+        "replicas": { "type": "integer", "minimum": 1 },
+        "memory": { "type": "string" },
+        "cpu": { "type": "string" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "health_check": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "secrets": {
+      "type": "array",
+      "description": "Secret metadata descriptors (zero real credentials stored).",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "environment": { "type": "string", "enum": ["development", "staging", "production"] },
+          "exists": { "type": "boolean" },
+          "is_present": { "type": "boolean" },
+          "source": { "type": "string" },
+          "last_rotated": { "type": "string" },
+          "age_days": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

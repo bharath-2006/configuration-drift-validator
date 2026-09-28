@@ -1,8 +1,6 @@
 {
-  "environment": "production",
-  "timestamp": "2026-09-08T10:30:00",
-  "app_version": "1.4.2",
   "database_host": "prod-db",
   "log_level": "INFO",
-  "feature_payment": true
+  "environment": "production",
+  "app_version": "1.0.0"
 }

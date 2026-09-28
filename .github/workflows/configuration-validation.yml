@@ -1,0 +1,52 @@
+name: Configuration Safety & Continuous Validation
+
+on:
+  push:
+    branches: [ main, master, develop ]
+    paths:
+      - 'configs/**'
+      - 'runtime_snapshots/**'
+      - 'backend/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'configs/**'
+      - 'runtime_snapshots/**'
+      - 'backend/**'
+
+jobs:
+  validate-configuration:
+    name: Configuration Drift & Pre-Deployment Safety Gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Automated Test Suites
+        run: |
+          python -m pytest -v
+
+      - name: Run Configuration Drift Safety Gate (CI/CD Validator)
+        run: |
+          python -m backend.ci_validator --env production
+
+      - name: Upload Validation Report Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: configuration-validation-reports
+          path: reports/
+          retention-days: 14

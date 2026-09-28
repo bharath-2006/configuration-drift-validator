@@ -154,3 +154,29 @@ class AuditLogEntry(BaseModel):
     environment: str
     details: str
     risk_level: str = "INFO"
+
+# --- Phase 2 Schemas ---
+
+class GitCommitSimulateRequest(BaseModel):
+    author: str = "developer"
+    message: str = "Update configuration"
+    environment: str = "production"
+    changed_configs: Dict[str, Any]
+    changed_files: Optional[List[str]] = None
+
+class PreDeploymentCheckRequest(BaseModel):
+    environment: str = "production"
+
+class MonitoringScanRequest(BaseModel):
+    environment: str = "production"
+
+class NotificationItem(BaseModel):
+    id: int
+    title: str
+    message: str
+    severity: str
+    category: str
+    environment: Optional[str]
+    is_read: bool
+    created_at: str
+

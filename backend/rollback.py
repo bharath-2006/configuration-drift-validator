@@ -216,3 +216,88 @@ def get_all_rollback_records() -> List[Dict[str, Any]]:
             ORDER BY timestamp DESC
         """)
         return [dict(row) for row in cursor.fetchall()]
+
+def compare_config_versions(environment: str, version_a: int, version_b: int) -> Dict[str, Any]:
+    """
+    Compares two configuration versions for an environment and computes side-by-side diff:
+    OLD VALUE (version_a) -> NEW VALUE (version_b)
+    """
+    snap_a = get_config_snapshot_by_version(environment, version_a)
+    snap_b = get_config_snapshot_by_version(environment, version_b)
+
+    if not snap_a:
+        raise ValueError(f"Version {version_a} not found for '{environment}'.")
+    if not snap_b:
+        raise ValueError(f"Version {version_b} not found for '{environment}'.")
+
+    vars_a = snap_a.get("variables", {})
+    vars_b = snap_b.get("variables", {})
+
+    all_var_keys = sorted(set(vars_a.keys()) | set(vars_b.keys()))
+    variable_diffs = []
+
+    for k in all_var_keys:
+        val_a = vars_a.get(k)
+        val_b = vars_b.get(k)
+
+        if k in vars_a and k not in vars_b:
+            change_type = "REMOVED"
+        elif k not in vars_a and k in vars_b:
+            change_type = "ADDED"
+        elif str(val_a).strip() != str(val_b).strip():
+            change_type = "MODIFIED"
+        else:
+            change_type = "UNCHANGED"
+
+        variable_diffs.append({
+            "key": k,
+            "old_value": val_a,
+            "new_value": val_b,
+            "change_type": change_type
+        })
+
+    # Infrastructure comparison
+    infra_a = snap_a.get("infrastructure", {})
+    infra_b = snap_b.get("infrastructure", {})
+    all_infra_keys = sorted(set(infra_a.keys()) | set(infra_b.keys()))
+    infra_diffs = []
+    for k in all_infra_keys:
+        ia = infra_a.get(k)
+        ib = infra_b.get(k)
+        if ia != ib:
+            infra_diffs.append({
+                "key": k,
+                "old_value": ia,
+                "new_value": ib,
+                "change_type": "MODIFIED" if (ia is not None and ib is not None) else "ADDED" if ia is None else "REMOVED"
+            })
+
+    modified_count = sum(1 for d in variable_diffs if d["change_type"] == "MODIFIED")
+    added_count = sum(1 for d in variable_diffs if d["change_type"] == "ADDED")
+    removed_count = sum(1 for d in variable_diffs if d["change_type"] == "REMOVED")
+
+    return {
+        "environment": environment,
+        "version_a": version_a,
+        "version_b": version_b,
+        "version_a_meta": {
+            "created_by": snap_a.get("created_by"),
+            "created_at": snap_a.get("created_at"),
+            "description": snap_a.get("description")
+        },
+        "version_b_meta": {
+            "created_by": snap_b.get("created_by"),
+            "created_at": snap_b.get("created_at"),
+            "description": snap_b.get("description")
+        },
+        "summary": {
+            "total_keys_compared": len(all_var_keys),
+            "modified": modified_count,
+            "added": added_count,
+            "removed": removed_count,
+            "infra_changes": len(infra_diffs)
+        },
+        "variable_diffs": variable_diffs,
+        "infra_diffs": infra_diffs
+    }
+

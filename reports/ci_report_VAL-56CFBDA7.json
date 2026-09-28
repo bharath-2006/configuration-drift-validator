@@ -1,0 +1,55 @@
+{
+  "run_id": "VAL-56CFBDA7",
+  "timestamp": "2026-09-28T19:08:08.247496",
+  "environment": "production",
+  "decision": "SAFE",
+  "risk_score": 37,
+  "risk_level": "MEDIUM",
+  "total_checks": 25,
+  "passed_checks": 21,
+  "failed_checks": 4,
+  "critical_count": 0,
+  "high_count": 0,
+  "discrepancies": [
+    {
+      "environment": "staging",
+      "category": "env_var",
+      "item_key": "APP_ENV",
+      "expected_val": "Defined for staging",
+      "actual_val": "None",
+      "severity": "LOW",
+      "reason": "Minor configuration difference detected for APP_ENV in staging.",
+      "recommendation": "Review the value to confirm it complies with environment standards."
+    },
+    {
+      "environment": "staging",
+      "category": "env_var",
+      "item_key": "DATABASE_PORT",
+      "expected_val": "Defined for staging",
+      "actual_val": "None",
+      "severity": "LOW",
+      "reason": "Minor configuration difference detected for DATABASE_PORT in staging.",
+      "recommendation": "Review the value to confirm it complies with environment standards."
+    },
+    {
+      "environment": "staging",
+      "category": "env_var",
+      "item_key": "API_URL",
+      "expected_val": "Defined for staging",
+      "actual_val": "None",
+      "severity": "LOW",
+      "reason": "Minor configuration difference detected for API_URL in staging.",
+      "recommendation": "Review the value to confirm it complies with environment standards."
+    },
+    {
+      "environment": "staging",
+      "category": "env_var",
+      "item_key": "LOG_LEVEL",
+      "expected_val": "Defined for staging",
+      "actual_val": "None",
+      "severity": "MEDIUM",
+      "reason": "Log level 'None' deviates from standard 'Defined for staging'. Could cause excessive disk writes or insufficient log visibility.",
+      "recommendation": "Align LOG_LEVEL with environment policy (Defined for staging)."
+    }
+  ]
+}

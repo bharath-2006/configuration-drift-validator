@@ -9,9 +9,9 @@ import os
 import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from fastapi import FastAPI, HTTPException, Request, Depends
+from fastapi import FastAPI, HTTPException, Request, Depends, Query
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.database import init_db, get_db
@@ -21,7 +21,10 @@ from backend.schemas import (
     ChangeRequestReview,
     RollbackRequest,
     ConfigUploadRequest,
-    RuntimeSnapshotPayload
+    RuntimeSnapshotPayload,
+    GitCommitSimulateRequest,
+    PreDeploymentCheckRequest,
+    MonitoringScanRequest
 )
 from backend.normalizer import parse_env_file_content, parse_yaml_or_json
 from backend.drift_engine import run_full_drift_analysis
@@ -31,9 +34,32 @@ from backend.rollback import (
     save_new_config_version,
     perform_rollback,
     get_version_history,
-    get_all_rollback_records
+    get_all_rollback_records,
+    compare_config_versions
 )
 from backend.audit import log_audit_event, get_recent_audit_logs
+from backend.git_detector import (
+    get_recent_commits,
+    record_and_validate_commit,
+    seed_sample_git_history_if_needed
+)
+from backend.pre_deployment import run_pre_deployment_pipeline
+from backend.monitoring import (
+    run_monitoring_scan,
+    get_monitoring_dashboard_status
+)
+from backend.notifications import (
+    get_notifications,
+    create_notification,
+    mark_notification_read,
+    mark_all_notifications_read
+)
+from backend.reports_generator import (
+    get_all_validation_runs,
+    get_validation_run_details,
+    export_run_to_csv
+)
+from backend.risk_score import calculate_risk_score
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -75,6 +101,7 @@ def seed_sample_configs_if_needed():
                 description=f"Initial seed configuration for {env}",
                 author="system-installer"
             )
+    seed_sample_git_history_if_needed()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -473,6 +500,24 @@ def reset_demo():
         cursor.execute("DELETE FROM change_requests;")
         cursor.execute("DELETE FROM rollback_records;")
         cursor.execute("DELETE FROM audit_logs;")
+        cursor.execute("DELETE FROM git_commits;")
+        cursor.execute("DELETE FROM validation_runs;")
+        cursor.execute("DELETE FROM notifications;")
+        cursor.execute("DELETE FROM deployment_checks;")
+        cursor.execute("DELETE FROM monitoring_events;")
+
+    # Reset runtime snapshot to clean baseline
+    runtime_file = RUNTIME_DIR / "prod_runtime.json"
+    try:
+        runtime_file.write_text(json.dumps({
+            "database_host": "prod-db",
+            "log_level": "INFO",
+            "environment": "production",
+            "app_version": "1.0.0"
+        }, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
     seed_sample_configs_if_needed()
     global latest_validation_report
     latest_validation_report = None
@@ -484,6 +529,242 @@ def reset_demo():
         risk_level="INFO"
     )
     return {"status": "success", "message": "Demo data reset successfully"}
+
+# =========================================================================
+# --- Phase 2 New Endpoints ---
+# =========================================================================
+
+# --- 1. Git Integration Endpoints ---
+
+@app.get("/api/git/commits")
+def get_git_commits(limit: int = 20):
+    """Retrieves recorded Git commits modifying configurations."""
+    return get_recent_commits(limit=limit)
+
+@app.post("/api/git/simulate-commit")
+def simulate_git_commit(payload: GitCommitSimulateRequest):
+    """
+    Simulates a Git commit modifying configuration values.
+    Validates the commit, detects drift, calculates risk score, and determines CI status.
+    """
+    try:
+        result = record_and_validate_commit(
+            author=payload.author,
+            message=payload.message,
+            environment=payload.environment,
+            changed_configs=payload.changed_configs,
+            changed_files=payload.changed_files
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# --- 2. Pre-Deployment Validation Endpoint ---
+
+@app.post("/api/pre-deployment-check")
+def pre_deployment_check(payload: Optional[PreDeploymentCheckRequest] = None):
+    """
+    Executes dedicated 6-stage pre-deployment verification pipeline:
+    Config Check -> Env Check -> Infra Check -> Secret Check -> Runtime Check -> Risk Analysis -> Gate Decision
+    """
+    target_env = payload.environment if payload else "production"
+    try:
+        pipeline_result = run_pre_deployment_pipeline(target_env=target_env)
+        return pipeline_result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Pre-deployment check failed: {str(e)}")
+
+# --- 3. Continuous Configuration Monitoring Endpoints ---
+
+@app.get("/api/monitoring/status")
+def get_monitoring_status(environment: str = "production"):
+    """Fetches continuous monitoring metrics, status, and expected vs runtime comparison."""
+    return get_monitoring_dashboard_status(environment=environment)
+
+@app.post("/api/monitoring/scan")
+def trigger_monitoring_scan(payload: Optional[MonitoringScanRequest] = None):
+    """Manually triggers a continuous configuration monitoring scan."""
+    env = payload.environment if payload else "production"
+    return run_monitoring_scan(environment=env)
+
+# --- 4. Configuration History & Side-by-Side Comparison ---
+
+@app.get("/api/configs/{environment}/compare")
+def compare_versions(environment: str, v_a: int = Query(..., alias="v_a"), v_b: int = Query(..., alias="v_b")):
+    """
+    Compares two versions of an environment's configuration side-by-side.
+    Returns: OLD VALUE (v_a) -> NEW VALUE (v_b) with additions, modifications, and deletions.
+    """
+    try:
+        return compare_config_versions(environment=environment.lower(), version_a=v_a, version_b=v_b)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- 5. In-App Notification System Endpoints ---
+
+@app.get("/api/notifications")
+def list_notifications(unread_only: bool = False, limit: int = 50):
+    """Retrieves system notifications."""
+    return get_notifications(unread_only=unread_only, limit=limit)
+
+@app.post("/api/notifications/{notification_id}/read")
+def read_notification(notification_id: int):
+    """Marks a single notification as read."""
+    success = mark_notification_read(notification_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    return {"status": "success", "message": "Notification marked as read"}
+
+@app.post("/api/notifications/read-all")
+def read_all_notifications():
+    """Marks all notifications as read."""
+    count = mark_all_notifications_read()
+    return {"status": "success", "count": count, "message": f"{count} notifications marked as read"}
+
+# --- 6. Validation Reports & Export Endpoints ---
+
+@app.get("/api/reports/validation-runs")
+def list_validation_runs(limit: int = 30):
+    """Lists past validation runs."""
+    return get_all_validation_runs(limit=limit)
+
+@app.get("/api/reports/validation-runs/{run_id}")
+def get_validation_run(run_id: str):
+    """Retrieves full details for a specific validation run."""
+    run = get_validation_run_details(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail=f"Validation run '{run_id}' not found")
+    return run
+
+@app.get("/api/reports/validation-runs/{run_id}/export/json")
+def export_run_json(run_id: str):
+    """Downloads validation report as JSON."""
+    run = get_validation_run_details(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail=f"Validation run '{run_id}' not found")
+    return JSONResponse(content=run, headers={
+        "Content-Disposition": f"attachment; filename=validation_report_{run_id}.json"
+    })
+
+@app.get("/api/reports/validation-runs/{run_id}/export/csv")
+def export_run_csv(run_id: str):
+    """Downloads validation report as CSV."""
+    try:
+        csv_data = export_run_to_csv(run_id)
+        return Response(content=csv_data, media_type="text/csv", headers={
+            "Content-Disposition": f"attachment; filename=validation_report_{run_id}.csv"
+        })
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+# --- 7. Aggregated Dashboard Summary & Metrics ---
+
+@app.get("/api/dashboard/summary")
+def get_dashboard_summary():
+    """
+    Returns aggregated metrics, environment statuses, and chart data for the improved dashboard.
+    """
+    global latest_validation_report
+    if latest_validation_report is None:
+        latest_validation_report = validate_configurations()
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Count total validations
+        cursor.execute("SELECT COUNT(*) as cnt FROM validation_runs")
+        total_validations = cursor.fetchone()["cnt"]
+
+        # Count blocked deployments
+        cursor.execute("SELECT COUNT(*) as cnt FROM validation_runs WHERE deployment_decision = 'BLOCKED'")
+        blocked_deployments = cursor.fetchone()["cnt"]
+
+        # Count approved changes
+        cursor.execute("SELECT COUNT(*) as cnt FROM change_requests WHERE status = 'APPROVED'")
+        approved_changes = cursor.fetchone()["cnt"]
+
+        # Count rollbacks
+        cursor.execute("SELECT COUNT(*) as cnt FROM rollback_records")
+        rollbacks = cursor.fetchone()["cnt"]
+
+        # Count git commits
+        cursor.execute("SELECT COUNT(*) as cnt FROM git_commits")
+        git_commits_cnt = cursor.fetchone()["cnt"]
+
+        # Count unread notifications
+        cursor.execute("SELECT COUNT(*) as cnt FROM notifications WHERE is_read = 0")
+        unread_notifs = cursor.fetchone()["cnt"]
+
+        # Recent validation runs for charts
+        cursor.execute("""
+            SELECT run_id, environment, total_checks, passed_checks, failed_checks,
+                   critical_count, high_count, deployment_decision, risk_score, created_at
+            FROM validation_runs
+            ORDER BY id DESC LIMIT 7
+        """)
+        recent_runs = [dict(r) for r in cursor.fetchall()]
+
+    # Drift counts by environment
+    drifts_by_env = {"development": 0, "staging": 0, "production": 0}
+    for d in latest_validation_report.discrepancies:
+        env_key = d.environment.lower()
+        if env_key in drifts_by_env:
+            drifts_by_env[env_key] += 1
+        else:
+            drifts_by_env[env_key] = 1
+
+    # Severity distribution
+    issues_by_severity = {
+        "CRITICAL": latest_validation_report.critical_count,
+        "HIGH": latest_validation_report.high_count,
+        "MEDIUM": latest_validation_report.medium_count,
+        "LOW": latest_validation_report.low_count
+    }
+
+    # Environment statuses
+    env_status = dict(latest_validation_report.environment_status)
+
+    # Calculate overall risk score
+    risk_summary = calculate_risk_score(
+        environment="production",
+        discrepancies=latest_validation_report.discrepancies,
+        has_runtime_drift=any(d.category == "runtime" for d in latest_validation_report.discrepancies)
+    )
+
+    return {
+        "environment_status": env_status,
+        "active_versions": {
+            "development": get_active_version("development") or 1,
+            "staging": get_active_version("staging") or 1,
+            "production": get_active_version("production") or 1
+        },
+        "metrics": {
+            "total_validations": max(total_validations, 1),
+            "configuration_drifts": latest_validation_report.total_discrepancies,
+            "critical_issues": latest_validation_report.critical_count,
+            "high_issues": latest_validation_report.high_count,
+            "blocked_deployments": blocked_deployments,
+            "approved_changes": approved_changes,
+            "rollbacks_performed": rollbacks,
+            "git_commits_recorded": git_commits_cnt,
+            "unread_notifications": unread_notifs,
+            "risk_score": risk_summary["score"],
+            "risk_level": risk_summary["level"]
+        },
+        "charts": {
+            "drifts_by_env": drifts_by_env,
+            "issues_by_severity": issues_by_severity,
+            "recent_validations": list(reversed(recent_runs)),
+            "gate_ratio": {
+                "blocked": blocked_deployments,
+                "allowed": max(0, total_validations - blocked_deployments)
+            }
+        },
+        "latest_report_id": latest_validation_report.validation_run_id,
+        "latest_decision": "ALLOWED" if latest_validation_report.production_deployment_allowed else "BLOCKED"
+    }
 
 # --- Static Frontend Mounting ---
 
