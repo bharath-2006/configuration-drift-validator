@@ -61,7 +61,7 @@ python -m pytest tests/test_parsers_and_edge_cases.py -v
 
 ## 4. Test Suite Structure & Coverage Summary
 
-The repository contains **8 automated test modules** comprising **61 passing automated tests**:
+The repository contains **9 automated test modules** comprising **70 passing automated tests**:
 
 ```
 tests/
@@ -71,21 +71,23 @@ tests/
 ├── test_parsers_and_edge_cases.py   # Env parser, Docker Compose, K8s ConfigMap, JSON Schema, cycles, rollback
 ├── test_phase2_scenarios.py         # 20 Comprehensive Phase 2 test scenarios (normal, failure, adversarial)
 ├── test_rollback.py                 # Configuration versioning, rollback execution, and audit logging
+├── test_security_and_safe_rollback.py # Whitelist validation, path sanitization, size limits, secret masking, and safe rollback verification
 ├── test_validator.py                # Value normalization and host extraction utilities
 └── test_viva_demonstration_flow.py  # End-to-end 16-step viva demonstration integration flow
 ```
 
 ### Coverage Metrics
-- **Overall Statement Coverage**: **76%**
+- **Overall Statement Coverage**: **77%** (1301 / 1690 statements executed)
 - **Core Modules Coverage**:
   - `backend/risk_engine.py`: **100%**
   - `backend/schemas.py`: **100%**
   - `backend/audit.py`: **100%**
   - `backend/drift_engine.py`: **99%**
   - `backend/pre_deployment.py`: **97%**
+  - `backend/database.py`: **96%**
   - `backend/validation_policy.py`: **93%**
-  - `backend/database.py`: **89%**
-  - `backend/rollback.py`: **89%**
+  - `backend/security.py`: **92%**
+  - `backend/rollback.py`: **90%**
   - `backend/schema_validator.py`: **88%**
   - `backend/monitoring.py`: **85%**
   - `backend/normalizer.py`: **82%**
@@ -183,12 +185,28 @@ tests/
 ### 5.7 Rollback Restoration Tests
 - **Test File**: `tests/test_rollback.py`, `tests/test_parsers_and_edge_cases.py`
 - **Functions**: `test_config_versioning_and_rollback`, `test_rollback_actual_state_restoration`
-- **Component Tested**: `backend/rollback.py:execute_rollback()`
+- **Component Tested**: `backend/rollback.py:execute_rollback()` / `perform_rollback()`
 - **Inputs**: Update config to v2, then trigger rollback to v1.
-- **Expected Results**: Increments version to v3, restores v1's exact value, and logs `rollback_records` and `audit_logs`.
+- **Expected Results**: Restores v1's exact value, updates active pointer, and logs `rollback_records` and `audit_logs`.
 - **Command**:
   ```powershell
   python -m pytest tests/test_rollback.py -v
+  ```
+
+### 5.8 Security Validation and Safe Rollback Scenario Tests
+- **Test File**: `tests/test_security_and_safe_rollback.py`
+- **Functions**: `test_validate_environment_whitelist`, `test_sanitize_filename_path_traversal`, `test_payload_size_limit`, `test_sensitive_key_detection`, `test_mask_secret_value`, `test_sanitize_config_dict`, `test_api_rejects_invalid_environment`, `test_safe_rollback_state_restoration_and_drift_verification`, `test_rollback_to_invalid_version_fails_safely`
+- **Component Tested**: `backend/security.py`, `backend/rollback.py`, `backend/drift_engine.py`, `backend/main.py`
+- **Inputs**:
+  - Environment names with path traversal or invalid names (e.g. `../production`, `testing_env`).
+  - Filenames containing parent directory separators (`../../etc/passwd`).
+  - Large config strings exceeding max allowable payload size.
+  - Dicts with plain secret keys (`DATABASE_PASSWORD`, `API_KEY`, `JWT_SECRET`).
+  - Step-by-step drift injection: `DATABASE_HOST=dev-db` in production, triggering Critical drift, executing `perform_rollback` back to baseline, and running post-rollback validation proving zero critical drift.
+- **Expected Results**: Invalid inputs safely rejected with `SecurityValidationError` / HTTP 400; secrets masked to prevent credential leaks; rollback successfully restores production database host to `prod-db` and clears drift warnings.
+- **Command**:
+  ```powershell
+  python -m pytest tests/test_security_and_safe_rollback.py -v
   ```
 
 ---

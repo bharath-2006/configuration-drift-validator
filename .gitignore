@@ -7,3 +7,5 @@ venv/
 .venv/
 node_modules/
 .pytest_cache/
+.coverage
+reports/*.json

@@ -35,6 +35,12 @@ from backend.schema_validator import (
     validate_runtime_snapshot_data,
     validate_drift_rule
 )
+from backend.security import (
+    validate_environment_name,
+    validate_payload_size,
+    sanitize_safe_filename,
+    SecurityValidationError
+)
 from backend.drift_engine import run_full_drift_analysis
 from backend.rollback import (
     get_active_version,
@@ -155,7 +161,10 @@ def get_environments():
 @app.get("/api/configs/{environment}")
 def get_environment_config(environment: str, version: Optional[int] = None):
     """Retrieves the active configuration bundle or a specified version."""
-    env_lower = environment.lower()
+    try:
+        env_lower = validate_environment_name(environment)
+    except SecurityValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     target_v = version if version is not None else get_active_version(env_lower)
     if target_v is None:
         raise HTTPException(status_code=404, detail=f"No configuration found for environment '{environment}'")
@@ -177,10 +186,14 @@ def parse_artifact_endpoint(payload: ArtifactParseRequest):
     and validates against environment schema before returning standard internal representation.
     """
     try:
+        if payload.content:
+            validate_payload_size(payload.content)
+        safe_fname = sanitize_safe_filename(payload.filename) if payload.filename else None
+        target_env = validate_environment_name(payload.environment) if payload.environment else "production"
         parsed = parse_configuration_artifact(
             content=payload.content,
             artifact_type=payload.artifact_type,
-            filename=payload.filename
+            filename=safe_fname
         )
     except ArtifactParseError as e:
         raise HTTPException(status_code=400, detail=f"Artifact parsing error: {str(e)}")
@@ -214,7 +227,14 @@ def update_environment_config(environment: str, payload: ConfigUploadRequest):
     Updates configuration for an environment by parsing provided raw text/files or artifacts
     and creating a new immutable configuration version after schema validation.
     """
-    env_lower = environment.lower()
+    try:
+        env_lower = validate_environment_name(environment)
+        if payload.artifact_content:
+            validate_payload_size(payload.artifact_content)
+        if payload.raw_env_content:
+            validate_payload_size(payload.raw_env_content)
+    except SecurityValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     current_active_v = get_active_version(env_lower)
     existing_bundle = get_config_snapshot_by_version(env_lower, current_active_v) if current_active_v else None
 

@@ -5,8 +5,8 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688.svg)](https://fastapi.tiangolo.com)
 [![SQLite](https://img.shields.io/badge/SQLite-3-003B57.svg)](https://sqlite.org)
-[![Tests](https://img.shields.io/badge/Pytest-61%20Passed-brightgreen.svg)](https://docs.pytest.org)
-[![Coverage](https://img.shields.io/badge/Coverage-76%25-brightgreen.svg)](docs/testing.md)
+[![Tests](https://img.shields.io/badge/Pytest-70%20Passed-brightgreen.svg)](https://docs.pytest.org)
+[![Coverage](https://img.shields.io/badge/Coverage-77%25-brightgreen.svg)](docs/testing.md)
 [![CI/CD](https://img.shields.io/badge/GitHub%20Actions-Automated%20Gate-success.svg)](.github/workflows/configuration-validation.yml)
 [![Phase](https://img.shields.io/badge/Phase%20Completion-100%25%20Completed-brightgreen.svg)](README.md)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -43,11 +43,13 @@ In modern software development, multiple developers deploy features across Devel
 - **Phase 1 (Initial 35%):** Foundational prototype detecting configuration drift across `.env`, `infra.yaml`, secret metadata, and container snapshots with a binary deployment safety gate, rollback mechanism, and 20 tests.
 - **Phase 2 (70%):** Transformed into a comprehensive Continuous Configuration Safety platform with Git commit change detection, automated CI/CD validation CLI, 6-stage pre-deployment pipeline, runtime container monitoring, risk scoring (0-100), notifications, and 41 tests.
 - **Phase 3 (Final 100% Review Readiness):**
-  1. **Granular Unit Testing Documentation (`docs/testing.md`)**: Full documentation across all 61 tests and 8 test modules.
-  2. **Error Boundaries & Robustness (`docs/error-handling.md`)**: Documented all 9 system error boundaries, circular reference safeguards, malformed syntax handlers, and secret redaction.
+  1. **Granular Unit Testing Documentation (`docs/testing.md`)**: Full documentation across all 70 tests and 9 test modules.
+  2. **Error Boundaries & Robustness (`docs/error-handling.md`)**: Documented all system error boundaries, security sanitizers, circular reference safeguards, malformed syntax handlers, and secret redaction.
   3. **Complete REST API Reference (`docs/api-reference.md`)**: Documented all 31 active FastAPI endpoints with sample payloads and status codes.
   4. **Database Schema & ER Documentation (`docs/database-schema.md`)**: Documented all 15 SQLite tables with column constraints and a Mermaid ER diagram.
-  5. **Expanded Test Suite (61 tests)** with **76% statement coverage**.
+  5. **Security Hardening (`backend/security.py`)**: Input validation (environment whitelisting), path traversal stripping, upload payload size limits, and sensitive key masking.
+  6. **Safe Rollback Verification**: End-to-end verification that rolling back restored configuration values (e.g. `DATABASE_HOST=dev-db` -> `prod-db`) and successfully eliminates critical drift.
+  7. **Expanded Test Suite (70 tests)** with **77% statement coverage**.
 
 ---
 
@@ -169,7 +171,7 @@ Open your browser at:
 
 ## 7. Automated Testing & Coverage
 
-The repository contains an automated test suite with **61 passing tests** across 8 test modules.
+The repository contains an automated test suite with **70 passing tests** across 9 test modules.
 
 ### Run Tests via Windows PowerShell
 ```powershell
@@ -182,11 +184,12 @@ python -m pytest --cov=backend --cov-report=term-missing
 
 ### Test Suite Execution Output
 ```
-======================= 61 passed in 2.57s ========================
+======================= 70 passed in 1.75s ========================
 ```
-- **Overall Statement Coverage**: **76%**
+- **Overall Statement Coverage**: **77%**
 - **100% Coverage**: `backend/risk_engine.py`, `backend/schemas.py`, `backend/audit.py`
-- **90%+ Coverage**: `backend/drift_engine.py` (99%), `backend/pre_deployment.py` (97%), `backend/validation_policy.py` (93%)
+- **90%+ Coverage**: `backend/drift_engine.py` (99%), `backend/pre_deployment.py` (97%), `backend/database.py` (96%), `backend/validation_policy.py` (93%), `backend/security.py` (92%), `backend/rollback.py` (90%)
+- **80%+ Coverage**: `backend/schema_validator.py` (88%), `backend/monitoring.py` (85%), `backend/normalizer.py` (82%)
 
 For full test scenarios and documentation, see [Detailed Unit Testing Documentation](docs/testing.md).
 
@@ -194,11 +197,12 @@ For full test scenarios and documentation, see [Detailed Unit Testing Documentat
 
 ## 8. Error Boundaries & Robustness
 
-The system implements 9 strict error boundaries:
+The system implements strict error boundaries and security controls:
+- **Security Validation & Sanitization**: Validates environment names against strict whitelists, strips directory traversal (`../`) from filenames, limits upload payload sizes to prevent DoS, and detects/masks sensitive secret keys.
 - **Artifact Parser Guard**: Gracefully handles malformed YAML, missing delimiters in `.env`, and unclosed quotes with HTTP 400.
 - **JSON Schema Validation Guard**: Rejects invalid schemas, unexpected keys, and type mismatches.
 - **Circular Reference Guard**: Detects recursive variable interpolations (`A -> ${B}`, `B -> ${A}`) to prevent stack overflows.
-- **Rollback Guard**: Rejects rollbacks on non-existent versions or initial configurations (v1) without altering state.
+- **Safe Rollback Guard**: Verifies target version existence, atomically restores configuration files and active pointers, and clears post-rollback drift without corrupting state.
 - **Secret Redaction**: Strictly manages secret **metadata** without ever storing, accepting, or exposing plaintext secrets.
 
 For full error boundary mappings, see [Error Boundaries and Handling](docs/error-handling.md).

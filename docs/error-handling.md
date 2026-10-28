@@ -45,14 +45,19 @@ An **Error Boundary** in the Configuration Drift Validator is a defined perimete
 
 ## 2. Granular Boundary Specifications
 
-### Boundary 1: API Request & Payload Validation
-- **Possible Error**: Uploading unsupported file extensions, missing required fields in JSON payloads, invalid decision strings.
-- **Detection Mechanism**: Pydantic schema validation models in `backend/schemas.py` and file extension verification in `backend/main.py`.
+### Boundary 1: API Request, Security Sanitization & Payload Validation
+- **Possible Error**: Uploading unsupported file extensions, missing required fields in JSON payloads, path-traversal in filenames (`../../etc/passwd`), non-whitelisted environment names (`../production`), or payload size flooding (>5MB DoS attempt).
+- **Detection Mechanism**:
+  - `backend/security.py:validate_environment_name()` validates environments strictly against `['development', 'staging', 'production']`.
+  - `backend/security.py:sanitize_safe_filename()` strips directories and replaces dangerous path traversal patterns with basename sanitization.
+  - `backend/security.py:validate_payload_size()` verifies total character/byte volume does not exceed allowable limits.
+  - Pydantic schema models in `backend/schemas.py`.
 - **Handling Strategy**:
-  - Missing or malformed Pydantic fields automatically trigger HTTP 422 Unprocessable Entity.
-  - Unsupported format triggers `HTTPException(status_code=400, detail="Unsupported artifact format...")`.
-- **User Response**: Structured JSON: `{"detail": "<specific reason>"}`.
-- **State Impact**: Request terminated; no database records altered.
+  - Unwhitelisted environment name raises `SecurityValidationError` translated into HTTP 400 with a clear error: `"Invalid environment '...'. Allowed environments: development, staging, production"`.
+  - Oversized payloads raise `SecurityValidationError` resulting in HTTP 400 before memory-intensive parsing begins.
+  - Missing or malformed Pydantic fields trigger HTTP 422 Unprocessable Entity.
+- **User Response**: Structured JSON: `{"detail": "<specific validation error message>"}`.
+- **State Impact**: Request terminated; no database records altered; file system traversal thwarted.
 - **Audit Logging**: Rejected attempts do not alter configuration state.
 
 ### Boundary 2: Artifact Parsing & Syntax Failures
@@ -110,11 +115,14 @@ An **Error Boundary** in the Configuration Drift Validator is a defined perimete
 - **State Impact**: Uncommitted transactions are automatically rolled back by SQLite.
 
 ### Boundary 9: Secret Redaction & Information Leakage Prevention
-- **Possible Error**: Plaintext database passwords, API tokens, or server file paths leaking in error responses, audit logs, or API payloads.
-- **Detection Mechanism**: Secrets are modeled strictly as **metadata** in `backend/schemas.py:SecretMetadata` (fields: `id`, `name`, `exists_flag`, `source`, `last_rotated`, `rotation_policy_days`).
-- **Handling Strategy**: The API never accepts or returns raw secret values.
-- **User Response**: Users view compliance indicators without ever seeing raw secrets.
-- **State Impact**: Secure by design.
+- **Possible Error**: Plaintext database passwords, API tokens, JWT secrets, or server file paths leaking in error responses, audit logs, or API payloads.
+- **Detection Mechanism**: 
+  - Secrets are modeled strictly as **metadata** in `backend/schemas.py:SecretMetadataItem` (fields: `name`, `environment`, `is_present`, `source`, `age_days`).
+  - Active detection via `backend/security.py:is_sensitive_key()` pattern matcher (matching `PASSWORD`, `SECRET`, `KEY`, `TOKEN`, `CREDENTIAL`, etc.).
+  - Deep dictionary masking via `backend/security.py:sanitize_config_dict()` and `mask_secret_value()`.
+- **Handling Strategy**: Raw secret values are intercepted and masked (e.g. `pa****wd` or `********`). The API never accepts or returns raw secret values.
+- **User Response**: Users view compliance indicators and masked tokens without ever seeing raw credentials in plain text.
+- **State Impact**: Secure by design. Sensitive values never enter application logs or database audit trails.
 
 ---
 
