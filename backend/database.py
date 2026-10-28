@@ -262,6 +262,19 @@ def init_db():
         );
         """)
 
+        # 16. Users Table (Authentication & RBAC)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL, -- admin, developer, viewer
+            email TEXT,
+            is_active BOOLEAN DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+
         # Seed default environments if empty
         cursor.execute("SELECT COUNT(*) as count FROM environments;")
         if cursor.fetchone()["count"] == 0:
@@ -272,6 +285,18 @@ def init_db():
                 ("development", "Development", "Local developer testing & feature prototyping", 0),
                 ("staging", "Staging", "Shared integration environment resembling production", 0),
                 ("production", "Production", "Live user-facing high-availability production environment", 1)
+            ])
+
+        # Seed default users if empty
+        cursor.execute("SELECT COUNT(*) as count FROM users;")
+        if cursor.fetchone()["count"] == 0:
+            cursor.executemany("""
+            INSERT INTO users (username, password_hash, role, email)
+            VALUES (?, ?, ?, ?);
+            """, [
+                ("admin", "b17127e4615cf6086234b9548e65fc08$12b6522828515a2d3c56b21823633d0d5dfd0633ff7d5836084c2341e9b6be9c", "admin", "admin@cdv.internal"),
+                ("developer", "ae0e906f24508be741264b7e4406a602$1b40572017a8d573f2d8ca9b1c9a7195ce2994403012bbf6053983eb26cdb69a", "developer", "developer@cdv.internal"),
+                ("viewer", "1ee1c45945e2d7e8fb49bad8fef47ca7$ef73b26919e345206a88bb3c080b1679a17efb0e5303b563b7a077751582820b", "viewer", "viewer@cdv.internal")
             ])
 
     print("Database initialized successfully at:", DB_PATH)

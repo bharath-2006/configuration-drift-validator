@@ -87,6 +87,17 @@ graph TD
 
 ### 3.6 Secret Metadata Abstraction
 - Guarantees zero credential leakage:
+  - Stores only metadata: name, source, exists, last_rotated, age_days.
+  - Never stores or displays raw tokens, API keys, or database passwords.
+
+### 3.7 Cryptographic Authentication & RBAC Engine (auth.py)
+- Enforces defense-in-depth:
+  - **OWASP-Compliant Passwords:** Salted PBKDF2-HMAC-SHA256 hashes with 100,000 iterations and 16-byte cryptographically secure random salts.
+  - **RFC 7519 Signed JWTs:** Uses HMAC-SHA256 signatures with 120-minute expiration.
+  - **Three-Tier RBAC:** Admin (Rollback, Approvals), Developer (Uploads, Changes, Drift Validation), Viewer (Read-only status & reports).
+  - **Zero Identity Trust:** Identities recorded in audit logs and rollback records are bound to cryptographic token claims, preventing client spoofing.
+
+- Guarantees zero credential leakage:
   - Stores only metadata: `name`, `source`, `exists`, `last_rotated`, `age_days`.
   - Never stores or displays raw tokens, API keys, or database passwords.
 

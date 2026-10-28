@@ -6,8 +6,11 @@ import pytest
 from fastapi.testclient import TestClient
 from backend.main import app, seed_sample_configs_if_needed
 from backend.rollback import save_new_config_version
+from backend.auth import create_access_token
 
 client = TestClient(app)
+admin_token = create_access_token({"sub": "admin", "role": "admin"})
+client.headers["Authorization"] = f"Bearer {admin_token}"
 
 @pytest.fixture(autouse=True)
 def setup_api():
@@ -77,4 +80,4 @@ def test_change_request_approval_workflow():
     list_res = client.get("/api/change-requests")
     cr_item = next(c for c in list_res.json() if c["id"] == cr_id)
     assert cr_item["status"] == "APPROVED"
-    assert cr_item["reviewed_by"] == "principal-architect"
+    assert cr_item["reviewed_by"] == "admin"

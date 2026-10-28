@@ -198,6 +198,19 @@ Every rollback generates an immutable audit record for compliance and post-morte
 
 ---
 
+## 8. Role-Based Authorization & Security Guarantees
+
+Rollback is a privileged, high-impact operational capability protected by defense-in-depth:
+1. **Admin Authorization Only:** Only authenticated users bearing the admin role can trigger /api/rollback or /api/configs/rollback.
+2. **Rejection of Unauthorized Invocations:**
+   - Unauthenticated requests receive HTTP 401 Unauthorized.
+   - Viewer or Developer credentials receive HTTP 403 Forbidden.
+3. **Cryptographically Verified Identity:** The performed_by field is extracted directly from the verified JWT sub claim on the server. Client-supplied body strings cannot spoof user identity.
+4. **Post-Rollback Immediate Drift Re-Evaluation:** The active configuration is immediately re-evaluated against environment policy, verifying that critical drift is fully eliminated and unlocking the production deployment gate.
+5. **Durable Snapshot Preservation:** Historical configuration versions are immutable. Target versions are validated for existence before any atomic pointer or filesystem changes occur.
+
+---
+
 ## Summary of Verification Guarantees
 
 1. **State Restoration**: Database active version points to restored version.

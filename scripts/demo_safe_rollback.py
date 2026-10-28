@@ -47,7 +47,11 @@ def run_demonstration():
         "FEATURE_PAYMENT": "true"
     }
     clean_infra = {"service_name": "payment-api", "port": 8080, "replicas": 3, "health_check": True}
-    clean_secrets = [{"name": "DATABASE_PASSWORD", "environment": "production", "is_present": True, "source": "secret-manager", "age_days": 15}]
+    clean_secrets = [
+        {"name": "DATABASE_PASSWORD", "environment": "production", "is_present": True, "source": "secret-manager", "age_days": 15},
+        {"name": "API_SECRET_KEY", "environment": "production", "is_present": True, "source": "secret-manager", "age_days": 15},
+        {"name": "PAYMENT_GATEWAY_TOKEN", "environment": "production", "is_present": True, "source": "secret-manager", "age_days": 15}
+    ]
 
     v_baseline = save_new_config_version(
         environment=env,

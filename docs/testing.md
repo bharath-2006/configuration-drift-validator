@@ -61,12 +61,13 @@ python -m pytest tests/test_parsers_and_edge_cases.py -v
 
 ## 4. Test Suite Structure & Coverage Summary
 
-The repository contains **9 automated test modules** comprising **70 passing automated tests**:
+The repository contains **10 automated test modules** comprising **83 passing automated tests**:
 
 ```
 tests/
 ├── test_adversarial.py              # Whitespace, casing, numeric representations, subtle URI contamination
 ├── test_api_gate.py                 # REST API endpoints, change request review cycle, deployment gate
+├── test_auth_and_rbac.py            # PBKDF2 hashing, JWT signing/expiry, login, 401 unauthenticated, 403 forbidden, security headers, pagination
 ├── test_drift.py                    # 5 Core drift detection cases (DEBUG, DB, secrets, runtime, expected diffs)
 ├── test_parsers_and_edge_cases.py   # Env parser, Docker Compose, K8s ConfigMap, JSON Schema, cycles, rollback
 ├── test_phase2_scenarios.py         # 20 Comprehensive Phase 2 test scenarios (normal, failure, adversarial)
@@ -77,23 +78,24 @@ tests/
 ```
 
 ### Coverage Metrics
-- **Overall Statement Coverage**: **77%** (1301 / 1690 statements executed)
+- **Overall Statement Coverage**: **78%** (1424 / 1831 statements executed)
 - **Core Modules Coverage**:
+  - `backend/drift_engine.py`: **100%**
   - `backend/risk_engine.py`: **100%**
   - `backend/schemas.py`: **100%**
   - `backend/audit.py`: **100%**
-  - `backend/drift_engine.py`: **99%**
   - `backend/pre_deployment.py`: **97%**
-  - `backend/database.py`: **96%**
+  - `backend/database.py`: **94%**
   - `backend/validation_policy.py`: **93%**
   - `backend/security.py`: **92%**
   - `backend/rollback.py`: **90%**
+  - `backend/auth.py`: **89%**
   - `backend/schema_validator.py`: **88%**
   - `backend/monitoring.py`: **85%**
   - `backend/normalizer.py`: **82%**
   - `backend/artifact_parser.py`: **78%**
   - `backend/git_detector.py`: **71%**
-  - `backend/main.py`: **70%**
+  - `backend/main.py`: **71%**
 
 ---
 
@@ -207,6 +209,22 @@ tests/
 - **Command**:
   ```powershell
   python -m pytest tests/test_security_and_safe_rollback.py -v
+  ```
+
+### 5.9 Authentication & Role-Based Access Control (RBAC) Tests
+- **Test File**: `tests/test_auth_and_rbac.py`
+- **Functions**: `test_password_hashing_and_verification`, `test_jwt_generation_and_decoding`, `test_jwt_expired_token_raises_401`, `test_jwt_tampered_token_raises_401`, `test_login_endpoint_success`, `test_login_endpoint_failure`, `test_auth_me_endpoint`, `test_unauthenticated_request_to_protected_routes_returns_401`, `test_viewer_role_cannot_perform_privileged_actions`, `test_developer_role_cannot_perform_admin_rollback`, `test_authorized_actions_extract_verified_identity`, `test_security_headers_present_on_responses`, `test_pagination_on_list_endpoints`
+- **Component Tested**: `backend/auth.py`, `backend/main.py`
+- **Inputs**:
+  - Salting and PBKDF2 hash verification for passwords.
+  - Expired, tampered, and valid HMAC-SHA256 JWT tokens.
+  - Unauthenticated requests to protected endpoints (`/api/rollback`, `/api/configs/production/update`).
+  - Role checks: Viewer attempting rollback or config update (expected HTTP 403), Developer attempting rollback (expected HTTP 403), Admin executing rollback (expected HTTP 200).
+  - Spoofed request body attributes (`performed_by: "spoofed_hacker_name"`), verifying server-side token identity override.
+- **Expected Results**: All authentication invariants, RBAC gates, and header policies pass with 100% adherence.
+- **Command**:
+  ```powershell
+  python -m pytest tests/test_auth_and_rbac.py -v
   ```
 
 ---

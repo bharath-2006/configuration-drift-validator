@@ -41,6 +41,19 @@ from backend.security import (
     sanitize_safe_filename,
     SecurityValidationError
 )
+from backend.auth import (
+    Role,
+    UserLoginRequest,
+    TokenResponse,
+    AuthenticatedUser,
+    authenticate_user,
+    create_access_token,
+    get_current_user,
+    get_current_user_optional,
+    require_admin,
+    require_developer,
+    require_viewer
+)
 from backend.drift_engine import run_full_drift_analysis
 from backend.rollback import (
     get_active_version,
@@ -139,6 +152,59 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    return response
+
+# --- Authentication Endpoints ---
+
+@app.post("/api/auth/token", response_model=TokenResponse)
+@app.post("/api/auth/login", response_model=TokenResponse)
+def login_endpoint(payload: UserLoginRequest):
+    """
+    Authenticates user with username & password, returning cryptographically signed JWT token.
+    Roles: admin, developer, viewer.
+    """
+    user = authenticate_user(payload.username, payload.password)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid username or password.",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    token = create_access_token({"sub": user.username, "role": user.role})
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        username=user.username,
+        role=user.role,
+        expires_in_minutes=120
+    )
+
+@app.get("/api/auth/me")
+def get_current_user_profile(user: AuthenticatedUser = Depends(get_current_user)):
+    """Returns the authenticated user identity and verified role."""
+    return {
+        "id": user.id,
+        "username": user.username,
+        "role": user.role,
+        "email": user.email,
+        "is_active": user.is_active
+    }
+
+@app.get("/api/auth/users")
+def list_system_users(user: AuthenticatedUser = Depends(require_admin)):
+    """Lists registered users and assigned roles (Admin privilege required)."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, username, role, email, is_active, created_at FROM users")
+        return [dict(r) for r in cursor.fetchall()]
+
+
 # --- System & Health Endpoints ---
 
 @app.get("/api/health")
@@ -222,7 +288,11 @@ def parse_artifact_endpoint(payload: ArtifactParseRequest):
     )
 
 @app.post("/api/configs/{environment}/update")
-def update_environment_config(environment: str, payload: ConfigUploadRequest):
+def update_environment_config(
+    environment: str,
+    payload: ConfigUploadRequest,
+    current_user: AuthenticatedUser = Depends(require_developer)
+):
     """
     Updates configuration for an environment by parsing provided raw text/files or artifacts
     and creating a new immutable configuration version after schema validation.
@@ -308,7 +378,7 @@ def update_environment_config(environment: str, payload: ConfigUploadRequest):
         infra=new_infra,
         secrets=new_secrets,
         description=payload.description or "Configuration updated",
-        author=payload.author or "developer"
+        author=current_user.username
     )
 
     return {
@@ -460,21 +530,34 @@ def get_deployment_gate():
 # --- Change Request & Approval Workflow ---
 
 @app.get("/api/change-requests")
-def get_change_requests():
-    """Lists all change requests."""
+def get_change_requests(status: Optional[str] = None, limit: int = Query(default=100, ge=1, le=500), offset: int = Query(default=0, ge=0)):
+    """Lists change requests with optional status filtering and pagination."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT id, environment, title, description, proposed_changes_json,
-                   risk_level, status, requested_by, reviewed_by, review_notes,
-                   created_at, reviewed_at
-            FROM change_requests
-            ORDER BY created_at DESC
-        """)
+        if status:
+            cursor.execute("""
+                SELECT id, environment, title, description, proposed_changes_json,
+                       risk_level, status, requested_by, reviewed_by, review_notes,
+                       created_at, reviewed_at
+                FROM change_requests
+                WHERE status = ?
+                ORDER BY created_at DESC LIMIT ? OFFSET ?
+            """, (status.upper(), limit, offset))
+        else:
+            cursor.execute("""
+                SELECT id, environment, title, description, proposed_changes_json,
+                       risk_level, status, requested_by, reviewed_by, review_notes,
+                       created_at, reviewed_at
+                FROM change_requests
+                ORDER BY created_at DESC LIMIT ? OFFSET ?
+            """, (limit, offset))
         return [dict(row) for row in cursor.fetchall()]
 
 @app.post("/api/change-requests")
-def create_change_request(payload: ChangeRequestCreate):
+def create_change_request(
+    payload: ChangeRequestCreate,
+    current_user: AuthenticatedUser = Depends(require_developer)
+):
     """Submits a configuration change request with risk assessment."""
     changes_str = payload.proposed_changes_json.lower()
     
@@ -496,12 +579,12 @@ def create_change_request(payload: ChangeRequestCreate):
             payload.description,
             payload.proposed_changes_json,
             risk_level,
-            payload.requested_by
+            current_user.username
         ))
         cr_id = cursor.lastrowid
 
     log_audit_event(
-        user=payload.requested_by,
+        user=current_user.username,
         action="Change Requested",
         environment=payload.environment,
         details=f"Change Request #{cr_id} '{payload.title}' submitted (Risk: {risk_level})",
@@ -511,7 +594,11 @@ def create_change_request(payload: ChangeRequestCreate):
     return {"status": "success", "id": cr_id, "risk_level": risk_level, "message": "Change request submitted for review"}
 
 @app.post("/api/change-requests/{request_id}/review")
-def review_change_request(request_id: int, review: ChangeRequestReview):
+def review_change_request(
+    request_id: int,
+    review: ChangeRequestReview,
+    current_user: AuthenticatedUser = Depends(require_admin)
+):
     """Approves or rejects a change request. If approved, automatically applies it."""
     with get_db() as conn:
         cursor = conn.cursor()
@@ -524,11 +611,11 @@ def review_change_request(request_id: int, review: ChangeRequestReview):
             UPDATE change_requests
             SET status = ?, reviewed_by = ?, review_notes = ?, reviewed_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        """, (review.status.value, review.reviewed_by, review.review_notes, request_id))
+        """, (review.status.value, current_user.username, review.review_notes, request_id))
 
     action = f"Change {review.status.value.title()}"
     log_audit_event(
-        user=review.reviewed_by,
+        user=current_user.username,
         action=action,
         environment=cr["environment"],
         details=f"Change Request #{request_id} was {review.status.value} by {review.reviewed_by}. Notes: {review.review_notes}",
@@ -566,7 +653,7 @@ def review_change_request(request_id: int, review: ChangeRequestReview):
                 infra=merged_infra,
                 secrets=merged_secrets,
                 description=f"Applied via Change Request #{request_id}: {cr['title']}",
-                author=review.reviewed_by
+                author=current_user.username
             )
             return {"status": "success", "message": f"Change request approved and applied as Version {new_v}"}
         except Exception as e:
@@ -582,17 +669,21 @@ def get_rollbacks():
     return get_all_rollback_records()
 
 @app.post("/api/rollback")
-def execute_rollback(payload: RollbackRequest):
+@app.post("/api/configs/rollback")
+def execute_rollback(
+    payload: RollbackRequest,
+    current_user: AuthenticatedUser = Depends(require_admin)
+):
     """
     Rolls back an environment to a previous version, performs actual state restoration,
-    and immediately re-runs drift validation to verify system health.
+    and immediately re-runs drift validation to verify system health. (Admin only)
     """
     try:
         result = perform_rollback(
             environment=payload.environment,
             target_version=payload.target_version,
             reason=payload.reason,
-            performed_by=payload.performed_by
+            performed_by=current_user.username
         )
         # Immediately re-run drift validation after state restoration
         post_validation = validate_configurations()
@@ -604,14 +695,17 @@ def execute_rollback(payload: RollbackRequest):
 # --- Audit Trail Endpoints ---
 
 @app.get("/api/audit-logs")
-def get_audit_logs():
-    """Fetches recent audit logs."""
-    return get_recent_audit_logs(limit=100)
+def get_audit_logs(limit: int = Query(default=100, ge=1, le=500), offset: int = Query(default=0, ge=0)):
+    """Fetches recent audit logs with pagination."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, timestamp, user, action, environment, details, risk_level FROM audit_logs ORDER BY id DESC LIMIT ? OFFSET ?", (limit, offset))
+        return [dict(row) for row in cursor.fetchall()]
 
 # --- Reset / Seed Helper ---
 
 @app.post("/api/reset-demo")
-def reset_demo():
+def reset_demo(current_user: AuthenticatedUser = Depends(require_admin)):
     """Resets the demo data to pristine healthy state."""
     with get_db() as conn:
         cursor = conn.cursor()

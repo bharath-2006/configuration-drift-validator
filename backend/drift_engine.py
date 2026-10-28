@@ -292,6 +292,9 @@ def run_full_drift_analysis(
         if unique_key not in unique_map:
             unique_map[unique_key] = d
     final_discrepancies = list(unique_map.values())
+    # Deterministic stable sorting by severity rank, environment, category, item_key
+    sev_rank = {SeverityEnum.CRITICAL: 0, SeverityEnum.HIGH: 1, SeverityEnum.MEDIUM: 2, SeverityEnum.LOW: 3}
+    final_discrepancies.sort(key=lambda d: (sev_rank.get(d.severity, 4), d.environment, d.category, d.item_key))
 
     # Count severities
     crit_count = sum(1 for d in final_discrepancies if d.severity == SeverityEnum.CRITICAL)

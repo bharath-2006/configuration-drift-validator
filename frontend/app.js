@@ -13,6 +13,75 @@
 
 const API_BASE = "";
 
+let authToken = localStorage.getItem('cdv_jwt_token') || '';
+let currentUser = { username: 'admin', role: 'admin' };
+
+const originalFetch = window.fetch;
+window.fetch = async function(url, options = {}) {
+  options = options || {};
+  options.headers = options.headers || {};
+  if (authToken && typeof url === 'string' && url.includes('/api/')) {
+    if (options.headers instanceof Headers) {
+      if (!options.headers.has('Authorization')) {
+        options.headers.set('Authorization', 'Bearer ' + authToken);
+      }
+    } else if (Array.isArray(options.headers)) {
+      options.headers.push(['Authorization', 'Bearer ' + authToken]);
+    } else {
+      if (!options.headers['Authorization']) {
+        options.headers['Authorization'] = 'Bearer ' + authToken;
+      }
+    }
+  }
+  return originalFetch(url, options);
+};
+
+async function ensureAuth() {
+  if (!authToken) {
+    try {
+      const res = await originalFetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'admin', password: 'Admin@123' })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        authToken = data.access_token;
+        localStorage.setItem('cdv_jwt_token', authToken);
+      }
+    } catch (e) {
+      console.warn('Auto login warning:', e);
+    }
+  }
+}
+
+async function switchUserRole(role) {
+  const creds = {
+    admin: { username: 'admin', password: 'Admin@123' },
+    developer: { username: 'developer', password: 'Dev@123' },
+    viewer: { username: 'viewer', password: 'Viewer@123' }
+  };
+  const c = creds[role] || creds.admin;
+  try {
+    const res = await originalFetch(`${API_BASE}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(c)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      authToken = data.access_token;
+      localStorage.setItem('cdv_jwt_token', authToken);
+      const userEl = document.getElementById('active-user-name');
+      if (userEl) userEl.textContent = data.username;
+      alert(`Switched session to ${data.username.toUpperCase()} (Role: ${data.role.toUpperCase()})`);
+    }
+  } catch (err) {
+    console.error('Role switch failed:', err);
+  }
+}
+
+
 // State
 let currentSelectedEnv = "production";
 let cachedDriftItems = [];
@@ -24,6 +93,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function initDashboard() {
+  await ensureAuth();
   await fetchDashboardSummary();
   await fetchEnvironments();
   await runValidation(false);

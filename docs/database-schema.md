@@ -254,11 +254,12 @@ erDiagram
 - **Purpose**: Immutable security audit trail recording all platform operations, actions, users, and risk tiers.
 - **Columns**: `id`, `timestamp`, `user`, `action`, `environment`, `details`, `result`, `risk_level`.
 
-### Auxiliary Tables (Tables 12-15)
+### Auxiliary Tables (Tables 12-16)
 - `git_commits`: Simulated git commit log for pre-deployment CI hooks.
 - `notifications`: In-app notification alerts for drift and gate status.
 - `deployment_checks`: Historic log of automated deployment gate decisions.
 - `monitoring_events`: Background drift scanner event log.
+- `users`: Registered accounts, salted PBKDF2 password hashes, and assigned RBAC roles (`admin`, `developer`, `viewer`) for cryptographic JWT authentication.
 
 ---
 

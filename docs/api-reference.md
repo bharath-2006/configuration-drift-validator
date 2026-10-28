@@ -11,40 +11,45 @@ The interactive Swagger/OpenAPI documentation is available locally when the appl
 
 ## Endpoint Summary Table
 
-| Category | HTTP Method | URL Path | State Change? | Description |
-| :--- | :---: | :--- | :---: | :--- |
-| **System** | `GET` | `/` | No | Serves the frontend single-page dashboard. |
-| **System** | `GET` | `/api/health` | No | Returns system health and database connectivity status. |
-| **Environments** | `GET` | `/api/environments` | No | Lists all registered environments with health status. |
-| **Configuration** | `GET` | `/api/configs/{environment}` | No | Retrieves active configuration parameters for an environment. |
-| **Configuration** | `GET` | `/api/configs/{environment}/history` | No | Retrieves complete version history of configuration parameters. |
-| **Configuration** | `POST` | `/api/configs/parse-artifact` | No | Parses `.env`, Docker Compose, or K8s ConfigMap artifacts. |
-| **Configuration** | `POST` | `/api/configs/{environment}/update` | Yes | Updates a configuration parameter with version increment and audit. |
-| **Configuration** | `GET` | `/api/configs/{environment}/compare` | No | Compares configuration between two environments. |
-| **Runtime** | `GET` | `/api/runtime/{environment}` | No | Retrieves runtime process snapshots for an environment. |
-| **Runtime** | `POST` | `/api/runtime/{environment}` | Yes | Records a new runtime process snapshot. |
-| **Validation** | `POST` | `/api/validate` | Yes | Executes 5-tier drift engine and updates environment status. |
-| **Deployment Gate**| `GET` | `/api/deployment-gate` | No | Evaluates deployment gate status for production. |
-| **Pre-Deploy** | `POST` | `/api/pre-deployment-check` | Yes | Pre-deployment pipeline gate evaluation with CI report generation. |
-| **Change Review** | `GET` | `/api/change-requests` | No | Lists change requests with optional status filter. |
-| **Change Review** | `POST` | `/api/change-requests` | Yes | Submits a proposed configuration change. |
-| **Change Review** | `POST` | `/api/change-requests/{request_id}/review` | Yes | Approves or rejects a change request; applies fix if approved. |
-| **Rollback** | `GET` | `/api/rollbacks` | No | Retrieves the history of rollbacks performed. |
-| **Rollback** | `POST` | `/api/rollback` | Yes | Reverts a configuration key to its previous version. |
-| **Audit Trail** | `GET` | `/api/audit-logs` | No | Retrieves chronological audit log records. |
-| **Demo Setup** | `POST` | `/api/reset-demo` | Yes | Resets database to standard reproducible demo state. |
-| **Git Simulation** | `GET` | `/api/git/commits` | No | Lists simulated Git commit log entries. |
-| **Git Simulation** | `POST` | `/api/git/simulate-commit` | Yes | Simulates a Git commit with configuration changes. |
-| **Monitoring** | `GET` | `/api/monitoring/status` | No | Returns background configuration drift scanner status. |
-| **Monitoring** | `POST` | `/api/monitoring/scan` | Yes | Triggers a real-time monitoring scan. |
-| **Notifications** | `GET` | `/api/notifications` | No | Lists real-time in-app alerts and notifications. |
-| **Notifications** | `POST` | `/api/notifications/{id}/read` | Yes | Marks a notification as read. |
-| **Notifications** | `POST` | `/api/notifications/read-all` | Yes | Marks all notifications as read. |
-| **Reports** | `GET` | `/api/reports/validation-runs` | No | Lists historical validation run reports. |
-| **Reports** | `GET` | `/api/reports/validation-runs/{run_id}` | No | Retrieves full details of a specific validation run. |
-| **Reports** | `GET` | `/api/reports/validation-runs/{run_id}/export/json` | No | Exports validation run details as formatted JSON. |
-| **Reports** | `GET` | `/api/reports/validation-runs/{run_id}/export/csv` | No | Exports validation run details as CSV. |
-| **Dashboard** | `GET` | `/api/dashboard/summary` | No | Aggregates summary statistics, counts, and gate indicators. |
+| Category | HTTP Method | URL Path | State Change? | Role Required | Description |
+| :--- | :---: | :--- | :---: | :---: | :--- |
+| **Auth** | `POST` | `/api/auth/token` | No | None (Public) | Authenticates user with username & password; returns Bearer JWT. |
+| **Auth** | `POST` | `/api/auth/login` | No | None (Public) | JSON alias for authentication token generation. |
+| **Auth** | `GET` | `/api/auth/me` | No | Any Authenticated | Returns authenticated user profile and verified role claims. |
+| **Auth** | `GET` | `/api/auth/users` | No | `admin` | Lists system users and assigned roles. |
+| **System** | `GET` | `/` | No | None | Serves the frontend single-page dashboard. |
+| **System** | `GET` | `/api/health` | No | None | Returns system health and database connectivity status. |
+| **Environments** | `GET` | `/api/environments` | No | `viewer` | Lists all registered environments with health status. |
+| **Configuration** | `GET` | `/api/configs/{environment}` | No | `viewer` | Retrieves active configuration parameters for an environment. |
+| **Configuration** | `GET` | `/api/configs/{environment}/history` | No | `viewer` | Retrieves complete version history of configuration parameters. |
+| **Configuration** | `POST` | `/api/configs/parse-artifact` | No | `developer` | Parses `.env`, Docker Compose, or K8s ConfigMap artifacts. |
+| **Configuration** | `POST` | `/api/configs/{environment}/update` | Yes | `developer` | Updates a configuration parameter with version increment and audit. |
+| **Configuration** | `GET` | `/api/configs/{environment}/compare` | No | `viewer` | Compares configuration between two environments. |
+| **Runtime** | `GET` | `/api/runtime/{environment}` | No | `viewer` | Retrieves runtime process snapshots for an environment. |
+| **Runtime** | `POST` | `/api/runtime/{environment}` | Yes | `developer` | Records a new runtime process snapshot. |
+| **Validation** | `POST` | `/api/validate` | Yes | `developer` / `viewer` | Executes 5-tier drift engine and updates environment status. |
+| **Deployment Gate**| `GET` | `/api/deployment-gate` | No | `viewer` | Evaluates deployment gate status for production. |
+| **Pre-Deploy** | `POST` | `/api/pre-deployment-check` | Yes | `developer` | Pre-deployment pipeline gate evaluation with CI report generation. |
+| **Change Review** | `GET` | `/api/change-requests` | No | `viewer` | Lists change requests with optional status filter and pagination. |
+| **Change Review** | `POST` | `/api/change-requests` | Yes | `developer` | Submits a proposed configuration change (user taken from token). |
+| **Change Review** | `POST` | `/api/change-requests/{request_id}/review` | Yes | `admin` | Approves or rejects a change request; applies fix if approved. |
+| **Rollback** | `GET` | `/api/rollbacks` | No | `viewer` | Retrieves the history of rollbacks performed. |
+| **Rollback** | `POST` | `/api/rollback` | Yes | `admin` | Atomically reverts configuration to a target version. |
+| **Rollback** | `POST` | `/api/configs/rollback` | Yes | `admin` | Alias for rollback execution. |
+| **Audit Trail** | `GET` | `/api/audit-logs` | No | `viewer` | Retrieves chronological audit log records (supports limit/offset). |
+| **Demo Setup** | `POST` | `/api/reset-demo` | Yes | `admin` | Resets database to standard reproducible demo state. |
+| **Git Simulation** | `GET` | `/api/git/commits` | No | `viewer` | Lists simulated Git commit log entries (supports limit/offset). |
+| **Git Simulation** | `POST` | `/api/git/simulate-commit` | Yes | `developer` | Simulates a Git commit with configuration changes. |
+| **Monitoring** | `GET` | `/api/monitoring/status` | No | `viewer` | Returns background configuration drift scanner status. |
+| **Monitoring** | `POST` | `/api/monitoring/scan` | Yes | `developer` | Triggers a real-time monitoring scan. |
+| **Notifications** | `GET` | `/api/notifications` | No | `viewer` | Lists real-time in-app alerts and notifications. |
+| **Notifications** | `POST` | `/api/notifications/{id}/read` | Yes | `developer` | Marks a notification as read. |
+| **Notifications** | `POST` | `/api/notifications/read-all` | Yes | `developer` | Marks all notifications as read. |
+| **Reports** | `GET` | `/api/reports/validation-runs` | No | `viewer` | Lists historical validation run reports. |
+| **Reports** | `GET` | `/api/reports/validation-runs/{run_id}` | No | `viewer` | Retrieves full details of a specific validation run. |
+| **Reports** | `GET` | `/api/reports/validation-runs/{run_id}/export/json` | No | `viewer` | Exports validation run details as formatted JSON. |
+| **Reports** | `GET` | `/api/reports/validation-runs/{run_id}/export/csv` | No | `viewer` | Exports validation run details as CSV. |
+| **Dashboard** | `GET` | `/api/dashboard/summary` | No | `viewer` | Aggregates summary statistics, counts, and gate indicators. |
 
 ---
 

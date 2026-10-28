@@ -24,8 +24,11 @@ Directly exercises the exact viva walkthrough from Section 22:
 import pytest
 from fastapi.testclient import TestClient
 from backend.main import app
+from backend.auth import create_access_token
 
 client = TestClient(app)
+admin_token = create_access_token({"sub": "admin", "role": "admin"})
+client.headers["Authorization"] = f"Bearer {admin_token}"
 
 def test_full_16_step_viva_demonstration():
     # Setup: Clean state

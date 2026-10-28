@@ -38,10 +38,14 @@ from backend.rollback import (
 )
 from backend.drift_engine import detect_environment_variable_drift
 from backend.schemas import SeverityEnum
+from backend.auth import create_access_token
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    c = TestClient(app)
+    token = create_access_token({"sub": "developer", "role": "developer"})
+    c.headers["Authorization"] = f"Bearer {token}"
+    return c
 
 # ──────────────────────────────────────────────
 # Security Unit Tests
@@ -167,7 +171,11 @@ def test_safe_rollback_state_restoration_and_drift_verification():
         "FEATURE_PAYMENT": "true"
     }
     clean_infra = {"service_name": "payment-api", "port": 8080, "replicas": 3, "health_check": True}
-    clean_secrets = [{"name": "DATABASE_PASSWORD", "environment": "production", "is_present": True, "source": "secret-manager", "age_days": 15}]
+    clean_secrets = [
+        {"name": "DATABASE_PASSWORD", "environment": "production", "is_present": True, "source": "secret-manager", "age_days": 15},
+        {"name": "API_SECRET_KEY", "environment": "production", "is_present": True, "source": "secret-manager", "age_days": 15},
+        {"name": "PAYMENT_GATEWAY_TOKEN", "environment": "production", "is_present": True, "source": "secret-manager", "age_days": 15}
+    ]
 
     v_initial = save_new_config_version(
         environment=env,
