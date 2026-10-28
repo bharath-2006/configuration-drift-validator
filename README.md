@@ -1,14 +1,37 @@
 # Configuration Drift Validator
 > **Continuous Configuration Safety, CI/CD Validation & Runtime Monitoring Platform**  
-> *A 3rd-Year Computer Science Engineering Project — 70% Development Phase Completed*
+> *A 3rd-Year Computer Science Engineering Project — 100% Phase 3 Completed*
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688.svg)](https://fastapi.tiangolo.com)
 [![SQLite](https://img.shields.io/badge/SQLite-3-003B57.svg)](https://sqlite.org)
-[![Tests](https://img.shields.io/badge/Pytest-41%20Passed-brightgreen.svg)](https://docs.pytest.org)
+[![Tests](https://img.shields.io/badge/Pytest-61%20Passed-brightgreen.svg)](https://docs.pytest.org)
+[![Coverage](https://img.shields.io/badge/Coverage-76%25-brightgreen.svg)](docs/testing.md)
 [![CI/CD](https://img.shields.io/badge/GitHub%20Actions-Automated%20Gate-success.svg)](.github/workflows/configuration-validation.yml)
-[![Phase](https://img.shields.io/badge/Phase%20Completion-70%25%20Completed-orange.svg)](README.md)
+[![Phase](https://img.shields.io/badge/Phase%20Completion-100%25%20Completed-brightgreen.svg)](README.md)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+---
+
+## 📋 Table of Contents
+1. [Project Overview & Evolution](#1-project-overview--evolution)
+2. [Problem Statement & Process Comparison](#2-problem-statement--process-comparison)
+3. [Main Features & Architecture](#3-main-features--architecture)
+4. [Technology Stack](#4-technology-stack)
+5. [Installation & Setup on Windows](#5-installation--setup-on-windows)
+6. [How to Run the Application](#6-how-to-run-the-application)
+7. [Automated Testing & Coverage](#7-automated-testing--coverage)
+8. [Error Boundaries & Robustness](#8-error-boundaries--robustness)
+9. [REST API Endpoint Summary](#9-rest-api-endpoint-summary)
+10. [Database Schema Summary](#10-database-schema-summary)
+11. [Configuration Parsers & Formats](#11-configuration-parsers--formats)
+12. [CI/CD Validation & Pre-Deployment Gate](#12-cicd-validation--pre-deployment-gate)
+13. [Continuous Monitoring & Runtime Drift](#13-continuous-monitoring--runtime-drift)
+14. [College Viva Demonstration Walkthrough](#14-college-viva-demonstration-walkthrough)
+15. [Empirical Benchmark Results](#15-empirical-benchmark-results)
+16. [Troubleshooting](#16-troubleshooting)
+17. [Known Limitations](#17-known-limitations)
+18. [Documentation Links](#18-documentation-links)
 
 ---
 
@@ -17,28 +40,24 @@
 In modern software development, multiple developers deploy features across Development, Staging, and Production environments. Because environments naturally have different settings, developers frequently make environment-specific configuration errors (e.g., leaving `DEBUG=true` on, pointing database connections to `dev-db`, referencing test payment gateways, or neglecting secret rotation).
 
 ### Development Progression:
-- **Phase 1 (Initial 35%):** Created the foundational prototype detecting configuration drift across `.env`, `infra.yaml`, secret metadata, and container snapshots with a binary deployment safety gate, rollback mechanism, and 20 tests.
-- **Phase 2 (Current 70%):** Transformed the prototype into a comprehensive **Continuous Configuration Safety and Validation Platform** with:
-  1. **Git Commit Change Detection** (identifying configuration changes from repository commits).
-  2. **Automated CI/CD Validation** (GitHub Actions workflow and CLI gate with exit codes).
-  3. **Dedicated 6-Stage Pre-Deployment Process** (Config $\rightarrow$ Env $\rightarrow$ Infra $\rightarrow$ Secret $\rightarrow$ Runtime $\rightarrow$ Risk $\rightarrow$ Decision).
-  4. **Continuous Configuration Monitoring** (periodically verifying live container state against approved baselines).
-  5. **Enhanced Dashboard & Analytics** (status cards, health distribution, deployment gate pass/block ratios).
-  6. **Configuration Version History & Side-by-Side Diff** (`OLD VALUE → NEW VALUE`).
-  7. **Explainable Quantitative Risk Scoring (0–100)**.
-  8. **In-App Notification Center** (real-time alerts for critical drift, blocked deploys, and approvals).
-  9. **Validation Reports & CSV/JSON Export**.
-  10. **Extended Test Suite (41 tests)** and **Phase 1 vs Phase 2 Empirical Benchmark**.
+- **Phase 1 (Initial 35%):** Foundational prototype detecting configuration drift across `.env`, `infra.yaml`, secret metadata, and container snapshots with a binary deployment safety gate, rollback mechanism, and 20 tests.
+- **Phase 2 (70%):** Transformed into a comprehensive Continuous Configuration Safety platform with Git commit change detection, automated CI/CD validation CLI, 6-stage pre-deployment pipeline, runtime container monitoring, risk scoring (0-100), notifications, and 41 tests.
+- **Phase 3 (Final 100% Review Readiness):**
+  1. **Granular Unit Testing Documentation (`docs/testing.md`)**: Full documentation across all 61 tests and 8 test modules.
+  2. **Error Boundaries & Robustness (`docs/error-handling.md`)**: Documented all 9 system error boundaries, circular reference safeguards, malformed syntax handlers, and secret redaction.
+  3. **Complete REST API Reference (`docs/api-reference.md`)**: Documented all 31 active FastAPI endpoints with sample payloads and status codes.
+  4. **Database Schema & ER Documentation (`docs/database-schema.md`)**: Documented all 15 SQLite tables with column constraints and a Mermaid ER diagram.
+  5. **Expanded Test Suite (61 tests)** with **76% statement coverage**.
 
 ---
 
-## 2. Before and After Process Comparison
+## 2. Problem Statement & Process Comparison
 
 ```text
-FIRST 35% WORKFLOW:
-Developer ──► Configuration ──► Manual / Local Validation ──► Deployment Decision
+BEFORE AUTOMATED GATE:
+Developer ──► Configuration ──► Manual Inspection ──► Accidental Leak to Production ──► Outage / Leak
 
-AFTER 70% WORKFLOW:
+WITH CONFIGURATION DRIFT VALIDATOR:
 Developer ──► Git Commit ──► CI/CD Pipeline ──► Multi-Layer Drift Engine
                                                     │
                                             ┌───────┴───────┐
@@ -61,29 +80,7 @@ Developer ──► Git Commit ──► CI/CD Pipeline ──► Multi-Layer Dr
 
 ---
 
-## 3. Feature Matrix: Phase 1 (35%) vs Phase 2 (70%)
-
-| Feature Capability | Phase 1 (Original 35%) | Phase 2 (Enhanced 70%) |
-| :--- | :---: | :---: |
-| **Three-Pillar Config Ingestion** (`.env`, `infra`, `secrets`) | Yes | Yes (Enhanced schema validation) |
-| **Normalizer & Adversarial Sanitizer** | Yes | Yes (Case-insensitive strings, quotes) |
-| **Deployment Gate Decision** | Yes | Yes (Multi-stage evaluation) |
-| **Versioned Rollback** | Yes | Yes (With history & diff comparison) |
-| **Change Approval Workflow** | Yes | Yes (Integrated with notifications) |
-| **Git Change Detection** | No | **Yes** (Tracks commit ID, author, changed keys) |
-| **CI/CD Pipeline Integration** | No | **Yes** (GitHub Actions + CLI validator) |
-| **Dedicated Pre-Deployment Workflow** | No | **Yes** (6-stage sequential verification) |
-| **Continuous Runtime Monitoring** | No | **Yes** (Detects out-of-band container drift) |
-| **Visual Analytics Charts** | No | **Yes** (Environment drifts, severity, gate ratio) |
-| **Configuration Diff Comparator** | No | **Yes** (`OLD VALUE → NEW VALUE` table) |
-| **Quantitative Risk Scoring (0–100)** | No | **Yes** (Explainable rule-based scoring) |
-| **In-App Notification System** | No | **Yes** (Real-time bell counter & alert feed) |
-| **Automated Reports & Export** | No | **Yes** (JSON and CSV downloads) |
-| **Automated Pytest Tests** | 20 tests | **41 tests** (Normal, failure, adversarial) |
-
----
-
-## 4. System Architecture
+## 3. Main Features & Architecture
 
 ```mermaid
 graph TD
@@ -121,68 +118,203 @@ graph TD
     end
 ```
 
----
-
-## 5. Technology Stack
-
-- **Backend:** Python 3.10+ / 3.14 with **FastAPI** & **Uvicorn**.
-- **Data Validation & Sanitization:** **Pydantic v2** & **PyYAML 6.0+**.
-- **Database:** **SQLite 3** (lightweight, zero-configuration local database with row factory).
-- **Testing:** **pytest 9.0+** & **HTTPX** (`TestClient`).
-- **DevOps & CI/CD:** **GitHub Actions** (`.github/workflows/configuration-validation.yml`), Git, Docker Compose.
-- **Frontend:** Vanilla HTML5, Custom CSS3 Dark-Mode Glassmorphism Design System, Vanilla ES6 JavaScript (zero heavy Node/npm bundle steps required).
+For full architectural details, see [System Architecture](docs/architecture.md).
 
 ---
 
-## 6. Installation & Execution Guide (Windows / Linux / macOS)
+## 4. Technology Stack
 
-### Step 1: Clone or Open Project
+- **Backend:** Python 3.10+ (tested on Python 3.14) with **FastAPI** & **Uvicorn**.
+- **Data Validation & Sanitization:** **Pydantic v2**, **PyYAML 6.0+**, and **jsonschema** (Draft-07).
+- **Database:** **SQLite 3** (`PRAGMA foreign_keys = ON`, 15 tables).
+- **Testing:** **pytest 9.0+**, **pytest-cov**, and **HTTPX** (`TestClient`).
+- **DevOps & CI/CD:** **GitHub Actions**, Git, Docker Compose.
+- **Frontend:** Responsive HTML5/CSS3 Dark-Mode Glassmorphism Design System, ES6 JavaScript.
+
+---
+
+## 5. Installation & Setup on Windows
+
+### Step 1: Open Terminal & Navigate to Project
 ```powershell
-cd "c:\coe project"
+cd C:\Users\bhara\.gemini\antigravity\scratch\configuration-drift-validator
 ```
 
-### Step 2: Install Python Dependencies
+### Step 2: Create and Activate Virtual Environment
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+```
+
+### Step 3: Install Dependencies
 ```powershell
 pip install -r requirements.txt
+pip install pytest-cov jsonschema
 ```
 
-### Step 3: Run the Complete Test Suite (41 Tests)
-```powershell
-python -m pytest -v
-```
-*(All 41 tests execute and pass in under 2 seconds).*
+---
 
-### Step 4: Run the Phase 2 Benchmark Experiment
-```powershell
-python experiments/phase2_benchmark.py
-```
-*(Empirically compares Phase 1 vs Phase 2 across 20 realistic deployment scenarios).*
+## 6. How to Run the Application
 
-### Step 5: Test the CI/CD Pipeline Validator CLI
-```powershell
-python -m backend.ci_validator --env production
-```
-*(Simulates a GitHub Actions run: runs drift detection, generates a report artifact, and exits with 0 for PASS or 1 for BLOCKED).*
-
-### Step 6: Start the Web Dashboard
+### Start the Web Dashboard
 ```powershell
 python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 Open your browser at:
-👉 **`http://127.0.0.1:8000`**
-
-*(Interactive Swagger API docs available at `http://127.0.0.1:8000/docs`)*
+- **Web Dashboard**: **`http://127.0.0.1:8000`**
+- **Interactive Swagger API Docs**: **`http://127.0.0.1:8000/docs`**
+- **ReDoc API Docs**: **`http://127.0.0.1:8000/redoc`**
 
 ---
 
-## 7. Empirical Benchmark Results: Phase 1 vs Phase 2
+## 7. Automated Testing & Coverage
 
-We ran an automated benchmark across 20 diverse, realistic deployment scenarios. The table below presents the **actual, un-fabricated measurements**:
+The repository contains an automated test suite with **61 passing tests** across 8 test modules.
 
-| Metric | Phase 1 (Original 35%) | Phase 2 (Enhanced 70%) | Measurable Impact |
+### Run Tests via Windows PowerShell
+```powershell
+# Run all tests in verbose mode:
+python -m pytest -v
+
+# Run with statement coverage report:
+python -m pytest --cov=backend --cov-report=term-missing
+```
+
+### Test Suite Execution Output
+```
+======================= 61 passed in 2.57s ========================
+```
+- **Overall Statement Coverage**: **76%**
+- **100% Coverage**: `backend/risk_engine.py`, `backend/schemas.py`, `backend/audit.py`
+- **90%+ Coverage**: `backend/drift_engine.py` (99%), `backend/pre_deployment.py` (97%), `backend/validation_policy.py` (93%)
+
+For full test scenarios and documentation, see [Detailed Unit Testing Documentation](docs/testing.md).
+
+---
+
+## 8. Error Boundaries & Robustness
+
+The system implements 9 strict error boundaries:
+- **Artifact Parser Guard**: Gracefully handles malformed YAML, missing delimiters in `.env`, and unclosed quotes with HTTP 400.
+- **JSON Schema Validation Guard**: Rejects invalid schemas, unexpected keys, and type mismatches.
+- **Circular Reference Guard**: Detects recursive variable interpolations (`A -> ${B}`, `B -> ${A}`) to prevent stack overflows.
+- **Rollback Guard**: Rejects rollbacks on non-existent versions or initial configurations (v1) without altering state.
+- **Secret Redaction**: Strictly manages secret **metadata** without ever storing, accepting, or exposing plaintext secrets.
+
+For full error boundary mappings, see [Error Boundaries and Handling](docs/error-handling.md).
+
+---
+
+## 9. REST API Endpoint Summary
+
+The application exposes 31 REST endpoints under `/api/*`:
+- `GET /api/health` — Verifies system health and database connectivity.
+- `GET /api/environments` — Lists all registered environments.
+- `GET /api/configs/{environment}` — Retrieves active configuration parameters.
+- `GET /api/configs/{environment}/history` — Retrieves configuration version history.
+- `POST /api/configs/parse-artifact` — Parses `.env`, Docker Compose, or K8s ConfigMap.
+- `POST /api/configs/{environment}/update` — Updates configuration with version increment.
+- `POST /api/validate` — Executes 5-tier drift validation engine.
+- `GET /api/deployment-gate` — Returns production release gate decision (`APPROVED` vs `BLOCKED`).
+- `POST /api/pre-deployment-check` — Evaluates 6-stage pre-deployment pipeline.
+- `GET /api/change-requests` & `POST /api/change-requests` — Manages change review workflow.
+- `POST /api/change-requests/{id}/review` — Authorizes or rejects change requests.
+- `POST /api/rollback` — Reverts a configuration key to its previous version.
+- `GET /api/rollbacks` — Lists historical rollback records.
+- `GET /api/audit-logs` — Retrieves chronological audit logs.
+- `POST /api/reset-demo` — Resets database to standard reproducible state.
+- `GET /api/monitoring/status` & `POST /api/monitoring/scan` — Background drift monitoring.
+- `GET /api/notifications` — In-app alerts feed.
+- `GET /api/reports/validation-runs` — Lists validation run reports with JSON/CSV export.
+- `GET /api/dashboard/summary` — Aggregates summary analytics and metrics.
+
+For full schemas and examples, see [REST API Reference](docs/api-reference.md).
+
+---
+
+## 10. Database Schema Summary
+
+The database uses SQLite 3 with foreign key enforcement (`PRAGMA foreign_keys = ON`) across **15 normalized tables**:
+1. `environments`: Tracks deployment stages and health status.
+2. `configuration_versions`: Stores versioned key-value parameters with active flags.
+3. `environment_variables`: Tracks OS-level environment variables.
+4. `infrastructure_definitions`: Retains YAML infrastructure definitions as JSON.
+5. `secret_metadata`: Stores metadata (existence flag, rotation age) without raw secrets.
+6. `runtime_snapshots`: Point-in-time snapshots of running processes.
+7. `validation_runs`: Summarizes validation runs with release gate decisions.
+8. `drift_results`: Output records of every detected discrepancy.
+9. `change_requests`: Proposed modifications awaiting authorization.
+10. `rollback_records`: Immutable records of rollback operations.
+11. `audit_logs`: Immutable chronological log of all platform operations.
+12. `git_commits`: Simulated git commit log for pre-deployment CI hooks.
+13. `notifications`: In-app notification alerts for drift and gate status.
+14. `deployment_checks`: Historic log of automated deployment gate decisions.
+15. `monitoring_events`: Background drift scanner event log.
+
+For complete ER diagrams, see [Database Schema Documentation](docs/database-schema.md).
+
+---
+
+## 11. Configuration Parsers & Formats
+
+The configuration parsing subsystem (`backend/artifact_parser.py`) supports:
+- **Application YAML/JSON Configs**: Flattens nested keys into dot-notation paths (`database.host`, `logging.level`).
+- **Docker Compose (v2/v3)**: Extracts services, container images, port bindings, and environment variables into `compose.<service>.*`.
+- **Kubernetes ConfigMaps**: Parses standard Kubernetes ConfigMap manifests into `k8s.<name>.*`.
+- **Environment Files (`.env`)**: Parses standard `KEY=VALUE` pairs with comment support.
+
+---
+
+## 12. CI/CD Validation & Pre-Deployment Gate
+
+The CLI validator simulates a CI/CD pre-deployment pipeline:
+```powershell
+python -m backend.ci_validator --env production
+```
+- Returns exit code `0` if configuration is safe (`PASS`).
+- Returns exit code `1` if Critical/High drift is detected (`BLOCKED`).
+- Generates a timestamped JSON audit artifact under `reports/`.
+
+---
+
+## 13. Continuous Monitoring & Runtime Drift
+
+The continuous monitoring subsystem (`backend/monitoring.py`) periodically compares declared database baselines against active container memory snapshots (`runtime_snapshots/prod_runtime.json`). If out-of-band modifications occur (e.g., container hot-patched with `DEBUG=true`), the scanner raises a `RUNTIME DRIFT` alert and notifies the dashboard.
+
+---
+
+## 14. College Viva Demonstration Walkthrough
+
+The platform supports a complete 16-step demonstration scenario:
+1. **Open Dashboard:** Navigate to `http://127.0.0.1:8000` (all stages `HEALTHY`).
+2. **Inject Error:** In Configurations tab, edit Production `DATABASE_HOST=prod-db` to `dev-db` and save.
+3. **Simulate Git Commit:** Submit a commit with `{"DATABASE_HOST": "dev-db"}`.
+4. **Inspect CI/CD Validation:** Observe commit evaluated as `BLOCKED` with Risk Score `95/100 (CRITICAL RISK)`.
+5. **Run Drift Validation:** Click **Run Drift Validation**.
+6. **Verify Deployment Gate:** Banner turns red: `❌ DEPLOYMENT BLOCKED`.
+7. **Execute Pre-Deployment Gate:** Validate Before Deployment tab shows Stage 2 (Environment Check) failed.
+8. **Inspect Notification:** Bell badge updates with critical alert.
+9. **Submit Change Request:** Propose restoring `{"DATABASE_HOST": "prod-db"}`.
+10. **Approve Change Request:** Authorize request to apply corrected configuration.
+11. **Run Validation Again:** Click **Run Drift Validation** &rarr; Banner turns green: `✅ DEPLOYMENT APPROVED`.
+12. **Inspect Audit Trail:** View tamper-evident activity ledger.
+13. **Inspect Configuration History & Diff:** View side-by-side `OLD VALUE → NEW VALUE`.
+14. **Inspect Continuous Monitoring:** View container synchronization status.
+15. **Simulate Runtime Drift:** Inject `DEBUG=true` into container &rarr; monitor detects out-of-band divergence.
+16. **Execute Rollback:** Click **Version Rollback** &rarr; restore to prior version with one click.
+
+For full guide, see [User Guide](docs/user-guide.md) and [Viva Prep Guide](docs/viva-prep.md).
+
+---
+
+## 15. Empirical Benchmark Results
+
+Evaluated across 20 realistic deployment scenarios:
+
+| Metric | Phase 1 (Original 35%) | Phase 2 & 3 (100%) | Measurable Impact |
 | :--- | :---: | :---: | :---: |
 | **Automated Checks Performed** | 200 checks | **500 checks** | **+150% more comprehensive verification** |
-| **True Configuration Issues** | 17 | 17 | Known ground truth across 20 scenarios |
+| **True Configuration Issues** | 17 | 17 | Ground truth across 20 scenarios |
 | **Issues Detected** | 17 | 17 | **100% recall (0 false negatives)** |
 | **Issues Missed** | 0 | 0 | Zero configuration leaks |
 | **False Positives** | 0 | 0 | **Zero false alarms on valid environment differences** |
@@ -191,38 +323,44 @@ We ran an automated benchmark across 20 diverse, realistic deployment scenarios.
 | **Manual Inspection Steps Required** | 60 steps | **0 steps** | **100% automated via CI/CD gating** |
 | **Total Validation Time** | 5.09 ms | **4.08 ms** | **Sub-millisecond verification (~0.20 ms / scenario)** |
 
-*Full scenario breakdown available in [`docs/experiment_phase2.md`](file:///c:/coe%20project/docs/experiment_phase2.md).*
+Run benchmark anytime:
+```powershell
+python experiments/phase2_benchmark.py
+```
+
+For full details, see [Empirical Experiment Report](docs/experiment.md).
 
 ---
 
-## 8. College Viva Demonstration Walkthrough (16 Steps)
+## 16. Troubleshooting
 
-The 70% platform supports the complete end-to-end oral examination flow:
-
-1. **Open Dashboard:** Navigate to `http://127.0.0.1:8000`. Show:
-   - Development: `HEALTHY`
-   - Staging: `HEALTHY`
-   - Production: `HEALTHY`
-2. **Inject Dangerous Configuration:** Click **Configurations** tab &rarr; select **Production** &rarr; change `DATABASE_HOST=prod-db` to `DATABASE_HOST=dev-db` &rarr; click **Save New Version**.
-3. **Simulate Git Commit:** Click **"Simulate Git Commit"** in the header &rarr; submit commit with `{"DATABASE_HOST": "dev-db"}`.
-4. **Inspect CI/CD Validation:** Observe the commit is evaluated: `BLOCKED` with Risk Score `95/100 (CRITICAL RISK)`.
-5. **Run Drift Validation:** Click **"Run Drift Validation"**.
-6. **Verify Deployment Gate:** Banner turns glowing red: `❌ DEPLOYMENT BLOCKED: Production database points to non-production database ('dev-db')`.
-7. **Execute Pre-Deployment Gate:** Click **"Validate Before Deployment"** tab &rarr; run check &rarr; see Stage 2 (Environment Check) fail with critical error.
-8. **Inspect Notification:** Bell badge updates to `1` &rarr; open drawer &rarr; show `🔴 Critical configuration drift detected`.
-9. **Submit Change Request:** Click **Change Requests** &rarr; submit change: `{"DATABASE_HOST": "prod-db"}`.
-10. **Approve Change Request:** Click **Approve** &rarr; system applies the corrected configuration.
-11. **Run Validation Again:** Click **"Run Drift Validation"** &rarr; Banner turns glowing green: `✅ DEPLOYMENT APPROVED`.
-12. **Inspect Audit Trail:** Click **Audit Logs** &rarr; show tamper-evident activity ledger.
-13. **Inspect Configuration History & Diff:** Click **Config History & Diff** &rarr; compare `v1` vs `v2` &rarr; view side-by-side `OLD VALUE → NEW VALUE`.
-14. **Inspect Continuous Monitoring:** Click **Continuous Monitoring** &rarr; show baseline vs container sync table.
-15. **Simulate Runtime Drift:** Click **"Simulate Runtime Drift (DEBUG=true)"** &rarr; container state diverges &rarr; monitoring flags `RUNTIME DRIFT` alert.
-16. **Execute Rollback:** Click **Version Rollback** &rarr; restore Production to Version 1 &rarr; clean state restored.
+- **Port 8000 in use**:
+  ```powershell
+  Get-NetTCPConnection -LocalPort 8000 | Select-Object OwningProcess
+  Stop-Process -Id <PID> -Force
+  ```
+- **Reset database to clean demo state**:
+  Click **Reset Demo** in the dashboard header or call `POST /api/reset-demo`.
 
 ---
 
-## 9. Security & Academic Integrity Statement
+## 17. Known Limitations
 
-- **Zero Real Credentials:** The validator handles **secret metadata only** (`name`, `exists`, `source`, `last_rotated`, `age_days`). Passwords and API keys are never stored or logged.
-- **Input Sanitization:** User inputs and uploaded configuration manifests are strictly parsed with Pydantic and PyYAML.
-- **Rule-Based Risk Scoring:** The 0–100 risk score is an explainable rule-based scoring system designed for academic demonstration and DevOps pre-flight analysis.
+1. **Simulated Runtime Snapshots**: Telemetry uses periodic JSON fixtures rather than live Kubernetes daemon hooks.
+2. **Local SQLite Persistence**: Uses a self-contained local SQLite file for laptop reproducibility rather than distributed multi-cloud PostgreSQL.
+3. **Role Header Authentication**: User identity is provided via request parameters for demonstration simplicity rather than cryptographic OAuth2/JWT verification.
+
+---
+
+## 18. Documentation Links
+
+- 📖 [Detailed Unit Testing Documentation](docs/testing.md)
+- 🛡️ [Error Boundaries and Error Handling](docs/error-handling.md)
+- 🔌 [REST API Reference](docs/api-reference.md)
+- 🗄️ [Database Schema & ER Diagram](docs/database-schema.md)
+- 🏛️ [System Architecture](docs/architecture.md)
+- 📊 [Empirical Experiment Report](docs/experiment.md)
+- 🎯 [User Guide & Viva Demonstration](docs/user-guide.md)
+- ⚠️ [Risk Register & Mitigation Matrix](docs/risk-register.md)
+- 🎓 [College Viva Questions & Answers](docs/viva-prep.md)
+- 📑 [Full College Project Dissertation Report](docs/college-project-report.md)
